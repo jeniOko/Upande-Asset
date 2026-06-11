@@ -1,0 +1,776 @@
+{% extends "templates/web.html" %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block head_include %}
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<style>
+/* ── Hide the site-level navbar (webshop / Frappe web header) ─────────── */
+nav.navbar, .navbar { display: none !important; }
+body { padding-top: 0 !important; }
+
+/* ── Reset & base ─────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #1a1a2e; }
+button { cursor: pointer; border: none; background: none; font-family: inherit; }
+input, select, textarea { font-family: inherit; }
+
+/* ── App shell ────────────────────────────────────────────────────────── */
+#acs-app { max-width: 520px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
+
+/* ── Top bar ──────────────────────────────────────────────────────────── */
+.topbar { background: #fff; padding: 14px 16px 10px; border-bottom: 1px solid #e4e6ea; position: sticky; top: 0; z-index: 10; }
+.topbar-row { display: flex; align-items: center; gap: 10px; }
+.topbar-back { font-size: 20px; color: #4b5563; line-height: 1; padding: 4px 6px 4px 0; }
+.topbar-title { font-size: 16px; font-weight: 600; flex: 1; }
+.topbar-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.topbar-user { font-size: 12px; color: #6b7280; }
+.topbar-desk-link { font-size: 11px; font-weight: 600; color: #2563eb; text-decoration: none; white-space: nowrap; }
+.topbar-desk-link:active { color: #1d4ed8; }
+.progress-bar-wrap { margin-top: 8px; height: 4px; background: #e5e7eb; border-radius: 2px; }
+.progress-bar-fill { height: 100%; background: #2563eb; border-radius: 2px; transition: width .3s ease; }
+
+/* ── Screens ──────────────────────────────────────────────────────────── */
+.screen { display: none; flex-direction: column; flex: 1; padding: 16px; gap: 12px; }
+.screen.active { display: flex; }
+
+/* ── Card ─────────────────────────────────────────────────────────────── */
+.card { background: #fff; border-radius: 12px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.07); }
+.card-title { font-size: 13px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 12px; }
+
+/* ── Form fields ──────────────────────────────────────────────────────── */
+.field-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.field-label { font-size: 13px; font-weight: 500; color: #374151; }
+.field-label span.req { color: #ef4444; }
+.field-input { border: 1.5px solid #d1d5db; border-radius: 8px; padding: 11px 12px; font-size: 15px; width: 100%; background: #fff; color: #111827; outline: none; transition: border-color .15s; -webkit-appearance: none; }
+.field-input:focus { border-color: #2563eb; }
+.field-input:disabled { background: #f9fafb; color: #9ca3af; }
+
+/* ── Section header ───────────────────────────────────────────────────── */
+.section-header { font-size: 18px; font-weight: 700; color: #111827; }
+.section-sub { font-size: 13px; color: #6b7280; margin-top: 2px; }
+
+/* ── Check item ───────────────────────────────────────────────────────── */
+.check-item { border-bottom: 1px solid #f3f4f6; padding: 14px 0; }
+.check-item:last-child { border-bottom: none; padding-bottom: 0; }
+.check-item-name { font-size: 15px; font-weight: 500; color: #111827; margin-bottom: 10px; }
+.check-item-threshold { font-size: 11px; color: #9ca3af; margin-top: -7px; margin-bottom: 8px; }
+
+/* ── Status buttons ───────────────────────────────────────────────────── */
+.status-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+.status-btn { flex: 1; min-width: 60px; padding: 8px 4px; border-radius: 8px; font-size: 12px; font-weight: 600; text-align: center; border: 2px solid transparent; transition: all .15s; color: #374151; background: #f3f4f6; }
+.status-btn:active { transform: scale(.96); }
+.status-btn[data-val="OK"].active           { background: #d1fae5; border-color: #10b981; color: #065f46; }
+.status-btn[data-val="Fault / Defect"].active { background: #fee2e2; border-color: #ef4444; color: #7f1d1d; }
+.status-btn[data-val="Affected"].active     { background: #ffedd5; border-color: #f97316; color: #7c2d12; }
+.status-btn[data-val="Needs Monitoring"].active { background: #fef9c3; border-color: #eab308; color: #713f12; }
+.status-btn[data-val="Not Applicable"].active { background: #f3f4f6; border-color: #6b7280; color: #374151; }
+
+/* fault indicator chip on item row */
+.fault-chip { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 99px; margin-top: 6px; font-weight: 600; cursor: pointer; }
+.fault-chip.filled { background: #fee2e2; color: #7f1d1d; }
+.fault-chip.empty  { background: #fef2f2; color: #ef4444; border: 1px dashed #fca5a5; }
+
+/* ── Bottom sheet ─────────────────────────────────────────────────────── */
+.sheet-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 40; display: none; }
+.sheet-backdrop.open { display: block; }
+.bottom-sheet { position: fixed; bottom: 0; left: 0; right: 0; max-width: 520px; margin: 0 auto; background: #fff; border-radius: 20px 20px 0 0; z-index: 50; padding: 20px 20px 32px; transform: translateY(100%); transition: transform .3s ease; max-height: 88vh; overflow-y: auto; }
+.bottom-sheet.open { transform: translateY(0); }
+.sheet-handle { width: 40px; height: 4px; background: #d1d5db; border-radius: 2px; margin: 0 auto 16px; }
+.sheet-title { font-size: 17px; font-weight: 700; margin-bottom: 16px; }
+
+/* severity radio row */
+.sev-row { display: flex; gap: 8px; margin-bottom: 16px; }
+.sev-btn { flex: 1; padding: 9px 4px; border-radius: 8px; font-size: 12px; font-weight: 600; text-align: center; border: 2px solid #e5e7eb; color: #6b7280; background: #f9fafb; }
+.sev-btn.active[data-sev="Low"]      { border-color: #fbbf24; background: #fef9c3; color: #78350f; }
+.sev-btn.active[data-sev="Medium"]   { border-color: #f97316; background: #ffedd5; color: #7c2d12; }
+.sev-btn.active[data-sev="High"]     { border-color: #ef4444; background: #fee2e2; color: #7f1d1d; }
+.sev-btn.active[data-sev="Critical"] { border-color: #7c3aed; background: #ede9fe; color: #4c1d95; }
+textarea.field-input { resize: none; min-height: 72px; }
+
+/* ── Nav buttons ──────────────────────────────────────────────────────── */
+.nav-row { display: flex; gap: 10px; margin-top: auto; padding: 16px 0 0; }
+.btn-primary { flex: 1; background: #2563eb; color: #fff; padding: 14px; border-radius: 10px; font-size: 16px; font-weight: 600; }
+.btn-primary:active { background: #1d4ed8; }
+.btn-secondary { flex: 1; background: #fff; color: #374151; padding: 14px; border-radius: 10px; font-size: 16px; font-weight: 600; border: 1.5px solid #d1d5db; }
+.btn-secondary:active { background: #f9fafb; }
+.btn-full { flex: none; width: 100%; }
+.btn-success { background: #10b981; }
+.btn-success:active { background: #059669; }
+
+/* ── Success screen ───────────────────────────────────────────────────── */
+.success-icon { font-size: 64px; text-align: center; }
+.success-title { font-size: 22px; font-weight: 700; text-align: center; }
+.success-sub { font-size: 14px; color: #6b7280; text-align: center; }
+.doc-link { display: block; text-align: center; color: #2563eb; font-size: 14px; font-weight: 600; margin-top: 4px; text-decoration: none; }
+
+/* ── Spinner ──────────────────────────────────────────────────────────── */
+.spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: middle; margin-right: 6px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Toast ────────────────────────────────────────────────────────────── */
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #1f2937; color: #fff; padding: 10px 20px; border-radius: 8px; font-size: 14px; z-index: 100; opacity: 0; transition: opacity .25s; pointer-events: none; white-space: nowrap; max-width: 90vw; text-overflow: ellipsis; overflow: hidden; }
+.toast.show { opacity: 1; }
+</style>
+{% endblock %}
+
+{% block page_content %}
+<div id="acs-app">
+
+  <!-- ── Top bar ─────────────────────────────────────────────────── -->
+  <div class="topbar">
+    <div class="topbar-row">
+      <button class="topbar-back" id="btn-back" style="display:none">&#8592;</button>
+      <span class="topbar-title" id="topbar-title">Asset Check Sheet</span>
+      <div class="topbar-right">
+        <a href="/app/asset-check-sheet" class="topbar-desk-link">Back To Desk</a>
+        <span class="topbar-user">{{ full_name }}</span>
+      </div>
+    </div>
+    <div class="progress-bar-wrap">
+      <div class="progress-bar-fill" id="progress-fill" style="width:0%"></div>
+    </div>
+  </div>
+
+  <!-- ── Screen 1 : Asset selection ─────────────────────────────── -->
+  <div class="screen active" id="screen-asset">
+    <div class="card">
+      <div class="card-title">Start a new check</div>
+
+      <div class="field-group">
+        <label class="field-label">Check Date <span class="req">*</span></label>
+        <input type="date" class="field-input" id="inp-date" max="">
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">Company <span class="req">*</span></label>
+        <select class="field-input" id="sel-company">
+          <option value="{{ company }}">{{ company }}</option>
+        </select>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">Asset Category <span class="req">*</span></label>
+        <select class="field-input" id="sel-category">
+          <option value="">Loading…</option>
+        </select>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">Asset <span class="req">*</span></label>
+        <select class="field-input" id="sel-asset" disabled>
+          <option value="">Select category first</option>
+        </select>
+      </div>
+
+      <div class="field-group" style="margin-bottom:0">
+        <label class="field-label">Template <span class="req">*</span></label>
+        <select class="field-input" id="sel-template" disabled>
+          <option value="">Select asset first</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="nav-row" style="padding-top:4px">
+      <button class="btn-primary" id="btn-start">Begin Check →</button>
+    </div>
+  </div>
+
+  <!-- ── Screen 2 : Sections (rendered dynamically) ─────────────── -->
+  <div class="screen" id="screen-section">
+    <div class="card">
+      <div class="section-header" id="sec-title">Section A</div>
+      <div class="section-sub" id="sec-counter"></div>
+      <div id="sec-items" style="margin-top:12px"></div>
+    </div>
+    <div class="nav-row">
+      <button class="btn-secondary" id="btn-sec-prev">← Back</button>
+      <button class="btn-primary"   id="btn-sec-next">Next →</button>
+    </div>
+  </div>
+
+  <!-- ── Screen 3 : Notes + submit ─────────────────────────────── -->
+  <div class="screen" id="screen-notes">
+    <div class="card">
+      <div class="card-title">Review &amp; Submit</div>
+      <div id="notes-summary" style="margin-bottom:14px;font-size:14px;color:#374151;line-height:1.6"></div>
+      <div class="field-group" style="margin-bottom:0">
+        <label class="field-label">Additional Notes</label>
+        <textarea class="field-input" id="inp-notes" rows="3" placeholder="Optional observations…"></textarea>
+      </div>
+    </div>
+    <div class="nav-row">
+      <button class="btn-secondary" id="btn-notes-back">← Back</button>
+      <button class="btn-primary btn-success" id="btn-submit">Submit Check Sheet</button>
+    </div>
+  </div>
+
+  <!-- ── Screen 4 : Success ─────────────────────────────────────── -->
+  <div class="screen" id="screen-success" style="justify-content:center;gap:16px">
+    <div class="success-icon">✅</div>
+    <div class="success-title">Check Sheet Saved</div>
+    <div class="success-sub" id="success-sub"></div>
+    <a href="#" class="doc-link" id="success-link">Open in desk →</a>
+    <button class="btn-primary btn-full" id="btn-new-check" style="margin-top:8px">Start Another Check</button>
+  </div>
+
+</div><!-- #acs-app -->
+
+<!-- ── Bottom sheet : Fault detail ────────────────────────────────── -->
+<div class="sheet-backdrop" id="sheet-backdrop"></div>
+<div class="bottom-sheet" id="bottom-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title" id="sheet-item-name"></div>
+
+  <div class="field-group">
+    <label class="field-label">Severity <span class="req">*</span></label>
+    <div class="sev-row">
+      <button class="sev-btn" data-sev="Low">Low</button>
+      <button class="sev-btn" data-sev="Medium">Med</button>
+      <button class="sev-btn" data-sev="High">High</button>
+      <button class="sev-btn" data-sev="Critical">Critical</button>
+    </div>
+  </div>
+
+  <div class="field-group">
+    <label class="field-label">Fault Description <span class="req">*</span></label>
+    <textarea class="field-input" id="sheet-desc" rows="3" placeholder="Describe the fault…"></textarea>
+  </div>
+
+  <div class="field-group" id="field-incident" style="display:none">
+    <label class="field-label">Incident % <span class="req">*</span></label>
+    <input type="number" class="field-input" id="sheet-incident" min="0" max="100" placeholder="0–100">
+  </div>
+
+  <div class="field-group" style="margin-bottom:0">
+    <label class="field-label">Proposed Action</label>
+    <textarea class="field-input" id="sheet-action" rows="2" placeholder="Recommended fix…"></textarea>
+  </div>
+
+  <div class="nav-row" style="margin-top:16px">
+    <button class="btn-secondary" id="btn-sheet-cancel">Cancel</button>
+    <button class="btn-primary"   id="btn-sheet-done">Save Details</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+{% endblock %}
+
+{% block script %}
+<script>
+// ── State ─────────────────────────────────────────────────────────────
+const S = {
+  company:        "{{ company }}",
+  check_date:     new Date().toISOString().slice(0,10),
+  asset:          "",
+  asset_name:     "",
+  asset_category: "",
+  template:       "",
+  template_doc:   null,
+  sections:       {},          // {a: [{check_factor,threshold_percent,status,...},...], ...}
+  active_secs:    [],          // letters with at least one item
+  sec_idx:        0,           // index into active_secs
+  fault_key:      null,        // "{sec}:{idx}" of item being edited in sheet
+  require_incident: false,
+  require_action:   false,
+  // Server-side user defaults — used to auto-select dropdowns on load
+  _def_category:  "{{ default_asset_category }}",
+  _def_asset:     "{{ default_asset }}",
+};
+
+const FAULT_STATUSES = ["Fault / Defect", "Affected"];
+const STATUS_LABELS  = {
+  "OK":               "✓ OK",
+  "Fault / Defect":   "✗ Fault",
+  "Affected":         "⚠ Affected",
+  "Needs Monitoring": "◉ Monitor",
+  "Not Applicable":   "— N/A",
+};
+
+// ── DOM helpers ────────────────────────────────────────────────────────
+const $  = id => document.getElementById(id);
+const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html) e.innerHTML = html; return e; };
+
+function showScreen(id) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  $(id).classList.add("active");
+}
+
+function setProgress(frac) {
+  $("progress-fill").style.width = (frac * 100) + "%";
+}
+
+function toast(msg, ms = 2800) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), ms);
+}
+
+// ── API helpers ────────────────────────────────────────────────────────
+// Use fetch directly — more reliable than frappe.call on www pages.
+function getCsrf() {
+  // frappe injects csrf_token into the page context
+  if (typeof frappe !== "undefined" && frappe.csrf_token) return frappe.csrf_token;
+  const m = document.cookie.match(/csrftoken=([^;]+)/);
+  return m ? m[1] : "";
+}
+
+function api(method, args) {
+  return fetch("/api/method/" + method, {
+    method:  "POST",
+    headers: {
+      "Content-Type":       "application/json",
+      "X-Frappe-CSRF-Token": getCsrf(),
+    },
+    body: JSON.stringify(args),
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.exception || data.exc_type) throw new Error(data.exception || data.exc_type);
+    return data.message;
+  });
+}
+
+// ── Init ───────────────────────────────────────────────────────────────
+document.addEventListener("DOMContentLoaded", () => {
+  $("inp-date").value = S.check_date;
+  $("inp-date").max   = S.check_date; // today — prevents picking future dates via the picker
+  loadCompanies();
+  loadCategories();
+  bindAssetScreen();
+  bindSectionScreen();
+  bindNotesScreen();
+  bindSheet();
+  $("btn-back").addEventListener("click", goBack);
+  $("btn-new-check").addEventListener("click", () => location.reload());
+});
+
+function loadCompanies() {
+  api("frappe.client.get_list", {
+    doctype: "Company", fields: ["name"], limit: 50, order_by: "name asc",
+  }).then(rows => {
+    const sel = $("sel-company");
+    sel.innerHTML = rows.map(r =>
+      `<option value="${r.name}"${r.name === S.company ? " selected" : ""}>${r.name}</option>`
+    ).join("");
+  }).catch(() => {}); // keep default option on error
+}
+
+// ── Asset screen ───────────────────────────────────────────────────────
+function loadCategories() {
+  api("frappe.client.get_list", {
+    doctype: "Asset Category", fields: ["name"], limit: 100, order_by: "name asc"
+  }).then(rows => {
+    const sel = $("sel-category");
+    sel.innerHTML = '<option value="">Select category…</option>' +
+      rows.map(r => `<option value="${r.name}">${r.name}</option>`).join("");
+    // Auto-select user's default category if it exists in the list
+    if (S._def_category && rows.some(r => r.name === S._def_category)) {
+      sel.value = S._def_category;
+      sel.dispatchEvent(new Event("change")); // triggers asset list load
+    }
+  });
+}
+
+function bindAssetScreen() {
+  $("sel-company").addEventListener("change", function () {
+    S.company = this.value;
+  });
+
+  $("sel-category").addEventListener("change", function () {
+    S.asset_category = this.value;
+    $("sel-asset").innerHTML    = '<option value="">Loading…</option>';
+    $("sel-asset").disabled     = true;
+    $("sel-template").innerHTML = '<option value="">Select asset first</option>';
+    $("sel-template").disabled  = true;
+    if (!this.value) return;
+    api("frappe.client.get_list", {
+      doctype: "Asset", fields: ["name","asset_name"],
+      filters: {asset_category: this.value, docstatus: 1},
+      limit: 200, order_by: "asset_name asc"
+    }).then(rows => {
+      const sel = $("sel-asset");
+      sel.disabled = false;
+      sel.innerHTML = '<option value="">Select asset…</option>' +
+        rows.map(r => `<option value="${r.name}">${r.asset_name || r.name}</option>`).join("");
+      // Auto-select user's default asset if it exists in this category's list
+      if (S._def_asset && rows.some(r => r.name === S._def_asset)) {
+        sel.value = S._def_asset;
+        sel.dispatchEvent(new Event("change")); // triggers template load
+      }
+    });
+  });
+
+  $("sel-asset").addEventListener("change", function () {
+    S.asset      = this.value;
+    S.asset_name = this.options[this.selectedIndex]?.text || "";
+    $("sel-template").innerHTML = '<option value="">Loading…</option>';
+    $("sel-template").disabled  = true;
+    if (!this.value) return;
+    api("frappe.client.get_list", {
+      doctype: "Asset Check Sheet Template",
+      fields:  ["name","template_name","is_default"],
+      filters: {asset_category: S.asset_category},
+      limit: 50, order_by: "is_default desc, template_name asc"
+    }).then(rows => {
+      const sel = $("sel-template");
+      sel.disabled = false;
+      sel.innerHTML = '<option value="">Select template…</option>' +
+        rows.map(r => `<option value="${r.name}"${r.is_default?" selected":""}>${r.template_name || r.name}</option>`).join("");
+      // auto-select if only one or default found
+      if (sel.selectedIndex < 1 && rows.length === 1) sel.value = rows[0].name;
+      sel.dispatchEvent(new Event("change"));
+    });
+  });
+
+  $("sel-template").addEventListener("change", function () {
+    S.template = this.value;
+  });
+
+  $("inp-date").addEventListener("change", function () {
+    S.check_date = this.value;
+  });
+
+  $("btn-start").addEventListener("click", async () => {
+    if (!S.check_date)     { toast("Please set the Check Date"); return; }
+    if (S.check_date > new Date().toISOString().slice(0, 10)) {
+      toast("Check date cannot be in the future"); return;
+    }
+    if (!S.company)        { toast("Please select a Company"); return; }
+    if (!S.asset_category) { toast("Please select an Asset Category"); return; }
+    if (!S.asset)          { toast("Please select an Asset"); return; }
+    if (!S.template)       { toast("Please select a Template"); return; }
+
+    // Validate before opening the wizard — no duplicate allowed
+    $("btn-start").disabled = true;
+    $("btn-start").innerHTML = '<span class="spinner"></span>Checking…';
+    try {
+      const dup = await api(
+        "upande_asset.upande_asset.doctype.asset_check_sheet.asset_check_sheet.check_duplicate_check_sheet",
+        { asset: S.asset, check_date: S.check_date, template: S.template }
+      );
+      if (dup) {
+        toast(`Check sheet ${dup} already exists for this asset, template and date`);
+        $("btn-start").disabled = false;
+        $("btn-start").textContent = "Begin Check →";
+        return;
+      }
+      loadTemplate(); // sets its own loading state
+    } catch (_) {
+      toast("Could not validate — please check your connection");
+      $("btn-start").disabled = false;
+      $("btn-start").textContent = "Begin Check →";
+    }
+  });
+}
+
+// ── Load template + build section state ───────────────────────────────
+function loadTemplate() {
+  $("btn-start").disabled = true;
+  $("btn-start").innerHTML = '<span class="spinner"></span>Loading…';
+  api("frappe.client.get", {doctype: "Asset Check Sheet Template", name: S.template})
+    .then(tmpl => {
+      S.template_doc      = tmpl;
+      S.require_incident  = !!tmpl.require_incident_percent;
+      S.require_action    = !!tmpl.require_proposed_action;
+      S.sections          = {};
+      S.active_secs       = [];
+
+      ["a","b","c","d","e","f"].forEach(sec => {
+        const items = (tmpl[`section_${sec}_items`] || []);
+        if (!items.length) return;
+        S.active_secs.push(sec);
+        S.sections[sec] = items.map(src => ({
+          check_factor:      src.check_factor || "",
+          threshold_percent: src.threshold_percent || null,
+          status:            "",
+          severity:          "",
+          fault_description: "",
+          incident_percent:  null,
+          proposed_action:   "",
+        }));
+      });
+
+      if (!S.active_secs.length) { toast("Template has no check items"); $("btn-start").disabled = false; $("btn-start").textContent = "Begin Check →"; return; }
+      S.sec_idx = 0;
+      showSectionScreen();
+    })
+    .catch(() => { $("btn-start").disabled = false; $("btn-start").textContent = "Begin Check →"; toast("Failed to load template"); });
+}
+
+// ── Section screen ─────────────────────────────────────────────────────
+function showSectionScreen() {
+  const sec     = S.active_secs[S.sec_idx];
+  const label   = S.template_doc[`section_${sec}_name`] || `Section ${sec.toUpperCase()}`;
+  const total   = S.active_secs.length;
+
+  $("topbar-title").textContent = label;
+  $("btn-back").style.display   = "";
+  $("sec-title").textContent    = label;
+  $("sec-counter").textContent  = `Section ${S.sec_idx + 1} of ${total}`;
+  setProgress((S.sec_idx + 1) / (total + 1));
+
+  $("btn-sec-prev").style.display = S.sec_idx === 0 ? "none" : "";
+  $("btn-sec-next").textContent   = S.sec_idx < total - 1 ? "Next →" : "Review →";
+
+  renderItems(sec);
+  showScreen("screen-section");
+}
+
+function renderItems(sec) {
+  const container = $("sec-items");
+  container.innerHTML = "";
+  (S.sections[sec] || []).forEach((item, idx) => {
+    const wrap = el("div", "check-item");
+    wrap.dataset.sec = sec;
+    wrap.dataset.idx = idx;
+
+    const nameEl = el("div", "check-item-name", escHtml(item.check_factor));
+    wrap.appendChild(nameEl);
+
+    if (item.threshold_percent) {
+      wrap.appendChild(el("div", "check-item-threshold", `Threshold: ${item.threshold_percent}%`));
+    }
+
+    // Status buttons
+    const btns = el("div", "status-btns");
+    Object.entries(STATUS_LABELS).forEach(([val, lbl]) => {
+      const b = el("button", "status-btn" + (item.status === val ? " active" : ""));
+      b.dataset.val = val;
+      b.textContent = lbl;
+      b.addEventListener("click", () => onStatusClick(sec, idx, val, wrap));
+      btns.appendChild(b);
+    });
+    wrap.appendChild(btns);
+
+    // Fault chip (shown when fault is selected)
+    if (FAULT_STATUSES.includes(item.status)) {
+      const chip = el("button", item.fault_description ? "fault-chip filled" : "fault-chip empty");
+      chip.textContent = item.fault_description ? "✏ Edit fault details" : "⚠ Tap to add fault details";
+      chip.addEventListener("click", () => openSheet(sec, idx));
+      wrap.appendChild(chip);
+    }
+
+    container.appendChild(wrap);
+  });
+}
+
+function onStatusClick(sec, idx, val, wrap) {
+  S.sections[sec][idx].status = val;
+  // Clear fault data if switching away from fault
+  if (!FAULT_STATUSES.includes(val)) {
+    S.sections[sec][idx].severity         = "";
+    S.sections[sec][idx].fault_description = "";
+    S.sections[sec][idx].incident_percent  = null;
+    S.sections[sec][idx].proposed_action   = "";
+  }
+  // Re-render just this item
+  const container = $("sec-items");
+  const old = container.querySelector(`[data-sec="${sec}"][data-idx="${idx}"]`);
+  const tmp = document.createElement("div");
+  tmp.dataset.sec = sec;
+  tmp.dataset.idx = idx;
+  container.replaceChild(tmp, old);
+  // Re-render by replacing the placeholder with a fresh item node
+  const fresh = container;
+  renderItems(sec); // simplest: re-render whole section
+
+  // If fault selected, immediately open sheet
+  if (FAULT_STATUSES.includes(val)) openSheet(sec, idx);
+}
+
+function bindSectionScreen() {
+  $("btn-sec-prev").addEventListener("click", () => {
+    if (S.sec_idx > 0) { S.sec_idx--; showSectionScreen(); }
+    else goBack();
+  });
+  $("btn-sec-next").addEventListener("click", () => {
+    const sec = S.active_secs[S.sec_idx];
+    const unanswered = (S.sections[sec] || []).filter(i => !i.status);
+    if (unanswered.length) {
+      toast(`${unanswered.length} item(s) still need a status — please review all`);
+      // Highlight unanswered items
+      document.querySelectorAll(".check-item").forEach(wrap => {
+        const idx = +wrap.dataset.idx;
+        const item = S.sections[sec][idx];
+        wrap.style.background = item && !item.status ? "#fff7ed" : "";
+        wrap.style.borderRadius = item && !item.status ? "8px" : "";
+      });
+      return;
+    }
+    if (S.sec_idx < S.active_secs.length - 1) {
+      S.sec_idx++;
+      showSectionScreen();
+    } else {
+      showNotesScreen();
+    }
+  });
+}
+
+function goBack() {
+  if ($("screen-section").classList.contains("active") && S.sec_idx > 0) {
+    S.sec_idx--; showSectionScreen();
+  } else {
+    $("btn-back").style.display = "none";
+    $("topbar-title").textContent = "Asset Check Sheet";
+    setProgress(0);
+    $("btn-start").disabled = false;
+    $("btn-start").textContent = "Begin Check →";
+    showScreen("screen-asset");
+  }
+}
+
+// ── Notes / review screen ──────────────────────────────────────────────
+function showNotesScreen() {
+  $("topbar-title").textContent = "Review";
+  setProgress(1);
+
+  // Build summary
+  let faultCount = 0, totalCount = 0;
+  S.active_secs.forEach(sec => {
+    (S.sections[sec] || []).forEach(item => {
+      totalCount++;
+      if (FAULT_STATUSES.includes(item.status)) faultCount++;
+    });
+  });
+  const color = faultCount ? "#ef4444" : "#10b981";
+  $("notes-summary").innerHTML =
+    `<b>Asset:</b> ${escHtml(S.asset_name)}<br>` +
+    `<b>Date:</b> ${S.check_date}<br>` +
+    `<b>Items checked:</b> ${totalCount}<br>` +
+    `<b style="color:${color}">Faults / Issues: ${faultCount}</b>`;
+
+  showScreen("screen-notes");
+}
+
+function bindNotesScreen() {
+  $("btn-notes-back").addEventListener("click", () => {
+    S.sec_idx = S.active_secs.length - 1;
+    showSectionScreen();
+  });
+  $("btn-submit").addEventListener("click", submitCheckSheet);
+}
+
+// ── Submit ─────────────────────────────────────────────────────────────
+function submitCheckSheet() {
+  // Validate faults have details
+  for (const sec of S.active_secs) {
+    for (const item of (S.sections[sec] || [])) {
+      if (FAULT_STATUSES.includes(item.status) && !item.severity) {
+        toast(`"${item.check_factor}" — please add fault details`);
+        return;
+      }
+    }
+  }
+
+  $("btn-submit").disabled = true;
+  $("btn-submit").innerHTML = '<span class="spinner"></span>Submitting…';
+
+  const payload = {
+    asset:            S.asset,
+    check_date:       S.check_date,
+    template:         S.template,
+    company:          S.company,
+    additional_notes: $("inp-notes").value,
+    sections:         S.sections,
+  };
+
+  api("upande_asset.upande_asset.doctype.asset_check_sheet.asset_check_sheet.create_check_sheet_from_mobile",
+      { payload: JSON.stringify(payload) })
+    .then(res => {
+      if (res && res.name) {
+        const submitted = res.submitted !== false;
+        $("success-sub").textContent  = submitted
+          ? `${res.name} has been submitted successfully.`
+          : `${res.name} saved as draft — ${res.error || "review required"}.`;
+        $("success-link").href = `/app/asset-check-sheet/${res.name}`;
+        $("success-link").textContent = `Open ${res.name} in desk →`;
+        showScreen("screen-success");
+        setProgress(1);
+        $("btn-back").style.display = "none";
+      } else {
+        toast("Unexpected response — please try again");
+        $("btn-submit").disabled = false;
+        $("btn-submit").textContent = "Submit Check Sheet";
+      }
+    })
+    .catch(err => {
+      toast("Submission failed — check your connection");
+      $("btn-submit").disabled = false;
+      $("btn-submit").textContent = "Submit Check Sheet";
+    });
+}
+
+// ── Bottom sheet ───────────────────────────────────────────────────────
+function openSheet(sec, idx) {
+  const item = S.sections[sec][idx];
+  S.fault_key = `${sec}:${idx}`;
+
+  $("sheet-item-name").textContent = item.check_factor;
+  $("sheet-desc").value    = item.fault_description || "";
+  $("sheet-action").value  = item.proposed_action   || "";
+  $("sheet-incident").value = item.incident_percent != null ? item.incident_percent : "";
+  $("field-incident").style.display = S.require_incident ? "" : "none";
+
+  document.querySelectorAll(".sev-btn").forEach(b => {
+    b.classList.toggle("active", b.dataset.sev === item.severity);
+  });
+
+  $("bottom-sheet").classList.add("open");
+  $("sheet-backdrop").classList.add("open");
+  setTimeout(() => $("sheet-desc").focus(), 350);
+}
+
+function closeSheet() {
+  $("bottom-sheet").classList.remove("open");
+  $("sheet-backdrop").classList.remove("open");
+  S.fault_key = null;
+}
+
+function bindSheet() {
+  document.querySelectorAll(".sev-btn").forEach(b => {
+    b.addEventListener("click", function () {
+      document.querySelectorAll(".sev-btn").forEach(x => x.classList.remove("active"));
+      this.classList.add("active");
+    });
+  });
+
+  $("btn-sheet-cancel").addEventListener("click", () => {
+    const [sec, idx] = (S.fault_key || ":").split(":");
+    if (sec && !S.sections[sec]?.[+idx]?.fault_description) {
+      // User cancelled without saving — revert status to OK
+      S.sections[sec][+idx].status = "OK";
+    }
+    closeSheet();
+    if (sec) renderItems(sec);
+  });
+
+  $("sheet-backdrop").addEventListener("click", () => $("btn-sheet-cancel").click());
+
+  $("btn-sheet-done").addEventListener("click", () => {
+    const activeSev = document.querySelector(".sev-btn.active");
+    if (!activeSev) { toast("Please select a severity level"); return; }
+    const desc = $("sheet-desc").value.trim();
+    if (!desc) { toast("Please describe the fault"); return; }
+    if (S.require_incident && !$("sheet-incident").value) {
+      toast("Incident % is required for this template"); return;
+    }
+
+    const [sec, idx] = S.fault_key.split(":");
+    const item = S.sections[sec][+idx];
+    item.severity          = activeSev.dataset.sev;
+    item.fault_description = desc;
+    item.proposed_action   = $("sheet-action").value.trim();
+    item.incident_percent  = $("sheet-incident").value ? parseFloat($("sheet-incident").value) : null;
+
+    closeSheet();
+    renderItems(sec);
+  });
+}
+
+// ── Utils ──────────────────────────────────────────────────────────────
+function escHtml(str) {
+  return (str || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+</script>
+{% endblock %}
