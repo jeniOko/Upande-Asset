@@ -1,0 +1,22 @@
+{
+ "add_total_row": 0,
+ "creation": "2026-06-10 00:00:00.000000",
+ "disabled": 0,
+ "docstatus": 0,
+ "doctype": "Report",
+ "is_standard": "Yes",
+ "modified": "2026-06-10 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Asset",
+ "name": "Check Sheet History",
+ "owner": "Administrator",
+ "prepared_report": 0,
+ "ref_doctype": "Asset Check Sheet",
+ "report_name": "Check Sheet History",
+ "report_type": "Script Report",
+ "roles": [
+  {"role": "System Manager"},
+  {"role": "Maintenance Manager"},
+  {"role": "Maintenance User"}
+ ]
+}
