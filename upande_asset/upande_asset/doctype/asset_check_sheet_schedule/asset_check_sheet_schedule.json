@@ -1,0 +1,197 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-06-10 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "asset",
+  "asset_name",
+  "asset_category",
+  "col_break_1",
+  "check_sheet_template",
+  "enabled",
+  "status_section",
+  "last_check_date",
+  "next_due_date",
+  "col_break_2",
+  "check_status",
+  "days_overdue",
+  "recipients_section",
+  "notification_recipients"
+ ],
+ "fields": [
+  {
+   "default": "ACSS-.YYYY.-.####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "ACSS-.YYYY.-.####"
+  },
+  {
+   "fieldname": "asset",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Asset",
+   "no_copy": 1,
+   "options": "Asset",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fetch_from": "asset.asset_name",
+   "fieldname": "asset_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Asset Name",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fetch_from": "asset.asset_category",
+   "fieldname": "asset_category",
+   "fieldtype": "Link",
+   "label": "Asset Category",
+   "no_copy": 1,
+   "options": "Asset Category",
+   "read_only": 1
+  },
+  {
+   "fieldname": "col_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "The check frequency is taken from the template.",
+   "fieldname": "check_sheet_template",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Check Sheet Template",
+   "options": "Asset Check Sheet Template",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Enabled"
+  },
+  {
+   "depends_on": "eval: !doc.__islocal",
+   "fieldname": "status_section",
+   "fieldtype": "Section Break",
+   "label": "Schedule Status"
+  },
+  {
+   "depends_on": "eval: !doc.__islocal",
+   "description": "Updated automatically by the daily scheduler.",
+   "fieldname": "last_check_date",
+   "fieldtype": "Date",
+   "label": "Last Check Date",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval: !doc.__islocal",
+   "fieldname": "next_due_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Next Due Date",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "col_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval: !doc.__islocal",
+   "fieldname": "check_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "no_copy": 1,
+   "options": "Up to Date\nOverdue\nInactive",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval: !doc.__islocal",
+   "fieldname": "days_overdue",
+   "fieldtype": "Int",
+   "label": "Days Overdue",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "recipients_section",
+   "fieldtype": "Section Break",
+   "label": "Notification Recipients"
+  },
+  {
+   "description": "These users will be emailed whenever this asset misses a check. If empty, the maintenance team manager is notified instead.",
+   "fieldname": "notification_recipients",
+   "fieldtype": "Table",
+   "label": "Notification Recipients",
+   "options": "Check Sheet Notification Recipient"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [
+  {
+   "link_doctype": "Asset Check Sheet",
+   "link_fieldname": "asset"
+  }
+ ],
+ "modified": "2026-06-10 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Asset",
+ "name": "Asset Check Sheet Schedule",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Maintenance Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Maintenance User",
+   "share": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [
+  {"color": "Green",  "title": "Up to Date"},
+  {"color": "Red",    "title": "Overdue"},
+  {"color": "Gray",   "title": "Inactive"}
+ ],
+ "title_field": "asset_name",
+ "track_changes": 1
+}

@@ -1,0 +1,17 @@
+[
+  {
+    "doctype": "Custom Field",
+    "name": "Asset Repair-check_sheet",
+    "dt": "Asset Repair",
+    "fieldname": "check_sheet",
+    "label": "Check Sheet",
+    "fieldtype": "Link",
+    "options": "Asset Check Sheet",
+    "insert_after": "asset_name",
+    "read_only": 1,
+    "in_list_view": 0,
+    "in_standard_filter": 0,
+    "print_hide": 0,
+    "description": "Check sheet that triggered this repair"
+  }
+]

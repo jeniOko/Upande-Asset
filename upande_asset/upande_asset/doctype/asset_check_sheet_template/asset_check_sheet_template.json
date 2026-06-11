@@ -1,0 +1,283 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:template_name",
+ "creation": "2026-04-20 16:57:45.098479",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "template_name",
+  "asset_category",
+  "is_default",
+  "col_break_0",
+  "asset_maintenance_team",
+  "number_of_sections",
+  "description",
+  "section_break_sections",
+  "section_a_name",
+  "section_a_items",
+  "section_b_break",
+  "section_b_name",
+  "section_b_items",
+  "section_c_break",
+  "section_c_name",
+  "section_c_items",
+  "section_d_break",
+  "section_d_name",
+  "section_d_items",
+  "section_e_break",
+  "section_e_name",
+  "section_e_items",
+  "section_f_break",
+  "section_f_name",
+  "section_f_items",
+  "frequency",
+  "custom_frequency_days",
+  "require_incident_percent",
+  "require_proposed_action"
+ ],
+ "fields": [
+  {
+   "bold": 1,
+   "fieldname": "template_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Template Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "asset_category",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Asset Category",
+   "options": "Asset Category",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "default": "0",
+   "description": "Auto-populate this template when its Asset Category is selected on an Asset Check Sheet.",
+   "fieldname": "is_default",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Is Default Template"
+  },
+  {
+   "fieldname": "col_break_0",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "asset_maintenance_team",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Asset Management Team",
+   "options": "Asset Maintenance Team",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "description": "1 to 6. Section tables appear dynamically.",
+   "fieldname": "number_of_sections",
+   "fieldtype": "Int",
+   "label": "Number of Sections",
+   "reqd": 1
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "section_break_sections",
+   "fieldtype": "Section Break",
+   "label": "Sections"
+  },
+  {
+   "depends_on": "eval:doc.number_of_sections >= 1",
+   "fieldname": "section_a_name",
+   "fieldtype": "Data",
+   "label": "Section A \u2014 Name"
+  },
+  {
+   "depends_on": "eval:doc.number_of_sections >= 1",
+   "fieldname": "section_a_items",
+   "fieldtype": "Table",
+   "label": "Section A Check Factors",
+   "options": "Check Sheet Section Item"
+  },
+  {
+   "depends_on": "eval:doc.number_of_sections >= 2",
+   "fieldname": "section_b_break",
+   "fieldtype": "Section Break"
+  },
+  {
+   "depends_on": "eval:doc.number_of_sections >= 2",
+   "fieldname": "section_b_name",
+   "fieldtype": "Data",
+   "label": "Section B \u2014 Name"
+  },
+  {
+   "depends_on": "eval:doc.number_of_sections >= 2",
+   "fieldname": "section_b_items",
+   "fieldtype": "Table",
+   "label": "Section B Check Factors",
+   "options": "Check Sheet Section Item"
+  },
+  {
+   "depends_on": "eval:doc.number_of_sections >= 3",
+   "fieldname": "section_c_break",
+   "fieldtype": "Section Break"
+  },
+  {
+   "depends_on": "eval:doc.number_of_sections >= 3",
+   "fieldname": "section_c_name",
+   "fieldtype": "Data",
+   "label": "Section C \u2014 Name"
+  },
+  {
+   "depends_on": "eval:doc.number_of_sections >= 3",
+   "fieldname": "section_c_items",
+   "fieldtype": "Table",
+   "label": "Section C Check Factors",
+   "options": "Check Sheet Section Item"
+  },
+  {
+   "depends_on": "eval:doc.number_of_sections >= 4",
+   "fieldname": "section_d_break",
+   "fieldtype": "Section Break"
+  },
+  {
+   "depends_on": "eval:doc.number_of_sections >= 4",
+   "fieldname": "section_d_name",
+   "fieldtype": "Data",
+   "label": "Section D \u2014 Name"
+  },
+  {
+   "depends_on": "eval:doc.number_of_sections >= 4",
+   "fieldname": "section_d_items",
+   "fieldtype": "Table",
+   "label": "Section D Check Factors",
+   "options": "Check Sheet Section Item"
+  },
+  {
+   "depends_on": "eval:doc.number_of_sections >= 5",
+   "fieldname": "section_e_break",
+   "fieldtype": "Section Break"
+  },
+  {
+   "depends_on": "eval:doc.number_of_sections >= 5",
+   "fieldname": "section_e_name",
+   "fieldtype": "Data",
+   "label": "Section E \u2014 Name"
+  },
+  {
+   "depends_on": "eval:doc.number_of_sections >= 5",
+   "fieldname": "section_e_items",
+   "fieldtype": "Table",
+   "label": "Section E Check Factors",
+   "options": "Check Sheet Section Item"
+  },
+  {
+   "depends_on": "eval:doc.number_of_sections >= 6",
+   "fieldname": "section_f_break",
+   "fieldtype": "Section Break"
+  },
+  {
+   "depends_on": "eval:doc.number_of_sections >= 6",
+   "fieldname": "section_f_name",
+   "fieldtype": "Data",
+   "label": "Section F \u2014 Name"
+  },
+  {
+   "depends_on": "eval:doc.number_of_sections >= 6",
+   "fieldname": "section_f_items",
+   "fieldtype": "Table",
+   "label": "Section F Check Factors",
+   "options": "Check Sheet Section Item"
+  },
+  {
+   "fieldname": "frequency",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Check Frequency",
+   "options": "\nDaily\nWeekly\nMonthly\nQuarterly\nYearly\nCustom",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.frequency == 'Custom'",
+   "description": "Number of days between checks.",
+   "fieldname": "custom_frequency_days",
+   "fieldtype": "Int",
+   "label": "Custom Frequency (days)"
+  },
+  {
+   "default": "0",
+   "description": "Makes Incident % mandatory whenever a fault status is recorded.",
+   "fieldname": "require_incident_percent",
+   "fieldtype": "Check",
+   "label": "Require Incident % on Fault"
+  },
+  {
+   "default": "0",
+   "description": "Makes Proposed Action mandatory whenever a fault status is recorded.",
+   "fieldname": "require_proposed_action",
+   "fieldtype": "Check",
+   "label": "Require Proposed Action on Fault"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-04-23 22:18:05.401443",
+ "modified_by": "Administrator",
+ "module": "Upande Asset",
+ "name": "Asset Check Sheet Template",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Maintenance Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Maintenance User",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "template_name",
+ "track_changes": 1
+}

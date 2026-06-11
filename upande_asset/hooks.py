@@ -1,6 +1,6 @@
 app_name = "upande_asset"
 app_title = "Upande Asset"
-app_publisher = "dev@upande.com,wycliffe@upande.com"
+app_publisher = "jeniffer@upande.com,wycliffe@upande.com"
 app_description = "Customizations for the asset module"
 app_email = "dev@upande.com"
 app_license = "mit"
@@ -25,7 +25,7 @@ app_license = "mit"
 # ------------------
 
 # include js, css files in header of desk.html
-# app_include_css = "/assets/upande_asset/css/upande_asset.css"
+app_include_css = "/assets/upande_asset/css/upande_asset.css"
 # app_include_js = "/assets/upande_asset/js/upande_asset.js"
 
 # include js, css files in header of web template
@@ -250,3 +250,69 @@ app_license = "mit"
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
 
+# ============================================================
+# ADDITIONS TO: upande_asset/hooks.py
+# ============================================================
+# Add the sections below into your existing hooks.py file.
+# Do NOT replace the whole file — merge these into it.
+# ============================================================
+
+# -- Fixtures ----------------------------------------------------
+# Installs a custom field on Asset Repair linking it back to the
+# originating Asset Check Sheet.
+
+after_install = "upande_asset.upande_asset.install.after_install"
+after_migrate = "upande_asset.upande_asset.install.after_migrate"
+
+# -- Doc Events --------------------------------------------------
+# These replace the "Asset Repair Status Sync" and
+# "Asset Maintenance Status Sync" Server Scripts.
+# After adding these and deploying, disable those Server Scripts
+# in ERPNext > Server Script list.
+
+doc_events = {
+    "Asset Repair": {
+        "on_update": [
+            "upande_asset.upande_asset.doctype.asset_repair_hooks.on_asset_repair_save"
+        ],
+    },
+    "Asset Maintenance": {
+        "on_update": [
+            "upande_asset.upande_asset.doctype.asset_repair_hooks.on_asset_maintenance_save"
+        ],
+    },
+}
+
+# -- Scheduler Events --------------------------------------------
+# Replaces the "Asset Check Sheet Missed Check Notifier" Server Script.
+# After adding this and deploying, disable that Server Script.
+
+scheduler_events = {
+    "daily": [
+        "upande_asset.upande_asset.scheduled_tasks.check_missed_asset_checks"
+    ],
+}
+
+# ============================================================
+# NOTE ON CONTROLLER FILES
+# ============================================================
+# The AssetCheckSheet and AssetCheckSheetTemplate controller classes
+# (asset_check_sheet.py and asset_check_sheet_template.py) are
+# picked up automatically by Frappe when placed at:
+#
+#   upande_asset/upande_asset/doctype/asset_check_sheet/asset_check_sheet.py
+#   upande_asset/upande_asset/doctype/asset_check_sheet_template/asset_check_sheet_template.py
+#
+# No hooks.py entry needed for those — Frappe loads DocType
+# controllers by convention from the doctype folder.
+#
+# After placing the files and running `bench migrate`, disable
+# these Server Scripts in the ERPNext UI (don't delete — keep
+# them disabled so you have a fallback if needed):
+#
+#   - Asset Check Sheet Validate
+#   - Asset Check Sheet Submit Guard
+#   - Asset Repair Status Sync
+#   - Asset Maintenance Status Sync
+#   - Asset Check Sheet Missed Check Notifier
+# ============================================================

@@ -1,0 +1,379 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "naming_series:",
+ "creation": "2026-04-20 16:57:45.454676",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "asset_category",
+  "asset",
+  "check_sheet_template",
+  "col_break_1",
+  "check_date",
+  "asset_maintenance_team",
+  "overall_status",
+  "section_a_break",
+  "section_a_label",
+  "section_a_items",
+  "section_b_break",
+  "section_b_label",
+  "section_b_items",
+  "section_c_break",
+  "section_c_label",
+  "section_c_items",
+  "section_d_break",
+  "section_d_label",
+  "section_d_items",
+  "section_e_break",
+  "section_e_label",
+  "section_e_items",
+  "section_f_break",
+  "section_f_label",
+  "section_f_items",
+  "notes_break",
+  "additional_notes",
+  "company",
+  "amended_from",
+  "linked_asset_repair",
+  "linked_asset_maintenance",
+  "require_incident_percent",
+  "require_proposed_action",
+  "asset_name"
+ ],
+ "fields": [
+  {
+   "default": "ACS-.YYYY.-.####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "ACS-.YYYY.-.####"
+  },
+  {
+   "fieldname": "asset_category",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Asset Category",
+   "options": "Asset Category",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "asset",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Asset",
+   "options": "Asset",
+   "reqd": 1
+  },
+  {
+   "description": "Auto-populated with the default template for the category. Override before saving if needed.",
+   "fieldname": "check_sheet_template",
+   "fieldtype": "Link",
+   "label": "Check Sheet Template",
+   "options": "Asset Check Sheet Template",
+   "reqd": 1
+  },
+  {
+   "fieldname": "col_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Today",
+   "fieldname": "check_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Check Date",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "check_sheet_template.asset_maintenance_team",
+   "fieldname": "asset_maintenance_team",
+   "fieldtype": "Link",
+   "label": "Asset Management Team",
+   "options": "Asset Maintenance Team",
+   "read_only": 1
+  },
+  {
+   "default": "Draft",
+   "fieldname": "overall_status",
+   "fieldtype": "Select",
+   "label": "Overall Status",
+   "options": "Draft\nIn Review\nPassed\nNeeds Attention\nMaintained\nUnder Repair\nRepaired\nCancelled"
+  },
+  {
+   "depends_on": "eval:doc.check_sheet_template",
+   "fieldname": "section_a_break",
+   "fieldtype": "Section Break",
+   "label": "Section A"
+  },
+  {
+   "depends_on": "eval:doc.check_sheet_template",
+   "fetch_from": "check_sheet_template.section_a_name",
+   "fieldname": "section_a_label",
+   "fieldtype": "Data",
+   "label": "Section A Name",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.check_sheet_template",
+   "fieldname": "section_a_items",
+   "fieldtype": "Table",
+   "label": "Section A Checks",
+   "options": "Asset Check Sheet Item"
+  },
+  {
+   "depends_on": "eval:doc.section_b_label",
+   "fieldname": "section_b_break",
+   "fieldtype": "Section Break",
+   "label": "Section B"
+  },
+  {
+   "depends_on": "eval:doc.section_b_label",
+   "fetch_from": "check_sheet_template.section_b_name",
+   "fieldname": "section_b_label",
+   "fieldtype": "Data",
+   "label": "Section B Name",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.section_b_label",
+   "fieldname": "section_b_items",
+   "fieldtype": "Table",
+   "label": "Section B Checks",
+   "options": "Asset Check Sheet Item"
+  },
+  {
+   "depends_on": "eval:doc.section_c_label",
+   "fieldname": "section_c_break",
+   "fieldtype": "Section Break",
+   "label": "Section C"
+  },
+  {
+   "depends_on": "eval:doc.section_c_label",
+   "fetch_from": "check_sheet_template.section_c_name",
+   "fieldname": "section_c_label",
+   "fieldtype": "Data",
+   "label": "Section C Name",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.section_c_label",
+   "fieldname": "section_c_items",
+   "fieldtype": "Table",
+   "label": "Section C Checks",
+   "options": "Asset Check Sheet Item"
+  },
+  {
+   "depends_on": "eval:doc.section_d_label",
+   "fieldname": "section_d_break",
+   "fieldtype": "Section Break",
+   "label": "Section D"
+  },
+  {
+   "depends_on": "eval:doc.section_d_label",
+   "fetch_from": "check_sheet_template.section_d_name",
+   "fieldname": "section_d_label",
+   "fieldtype": "Data",
+   "label": "Section D Name",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.section_d_label",
+   "fieldname": "section_d_items",
+   "fieldtype": "Table",
+   "label": "Section D Checks",
+   "options": "Asset Check Sheet Item"
+  },
+  {
+   "depends_on": "eval:doc.section_e_label",
+   "fieldname": "section_e_break",
+   "fieldtype": "Section Break",
+   "label": "Section E"
+  },
+  {
+   "depends_on": "eval:doc.section_e_label",
+   "fetch_from": "check_sheet_template.section_e_name",
+   "fieldname": "section_e_label",
+   "fieldtype": "Data",
+   "label": "Section E Name",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.section_e_label",
+   "fieldname": "section_e_items",
+   "fieldtype": "Table",
+   "label": "Section E Checks",
+   "options": "Asset Check Sheet Item"
+  },
+  {
+   "depends_on": "eval:doc.section_f_label",
+   "fieldname": "section_f_break",
+   "fieldtype": "Section Break",
+   "label": "Section F"
+  },
+  {
+   "depends_on": "eval:doc.section_f_label",
+   "fetch_from": "check_sheet_template.section_f_name",
+   "fieldname": "section_f_label",
+   "fieldtype": "Data",
+   "label": "Section F Name",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.section_f_label",
+   "fieldname": "section_f_items",
+   "fieldtype": "Table",
+   "label": "Section F Checks",
+   "options": "Asset Check Sheet Item"
+  },
+  {
+   "fieldname": "notes_break",
+   "fieldtype": "Section Break",
+   "label": "Additional Notes"
+  },
+  {
+   "fieldname": "additional_notes",
+   "fieldtype": "Text Editor",
+   "label": "Additional Notes"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "options": "Asset Check Sheet",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "default": "frappe.defaults.get_user_default('company')",
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "linked_asset_repair",
+   "fieldtype": "Link",
+   "label": "Linked Asset Repair",
+   "options": "Asset Repair",
+   "read_only": 1
+  },
+  {
+   "fieldname": "linked_asset_maintenance",
+   "fieldtype": "Link",
+   "label": "Linked Asset Maintenance",
+   "options": "Asset Maintenance",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fetch_from": "check_sheet_template.require_incident_percent",
+   "fieldname": "require_incident_percent",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "label": "Require Incident %",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fetch_from": "check_sheet_template.require_proposed_action",
+   "fieldname": "require_proposed_action",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "label": "Require Proposed Action",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "fetch_from": "asset.asset_name",
+   "fieldname": "asset_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Asset Name",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [
+  {
+   "link_doctype": "Asset Repair",
+   "link_fieldname": "check_sheet"
+  },
+  {
+   "link_doctype": "Asset Maintenance",
+   "link_fieldname": "asset_name"
+  }
+ ],
+ "modified": "2026-04-28 13:18:52.850477",
+ "modified_by": "Administrator",
+ "module": "Upande Asset",
+ "name": "Asset Check Sheet",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Maintenance Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Maintenance User",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [
+  {"color": "Gray",   "title": "Draft"},
+  {"color": "Blue",   "title": "In Review"},
+  {"color": "Green",  "title": "Passed"},
+  {"color": "Red",    "title": "Needs Attention"},
+  {"color": "Orange", "title": "Under Repair"},
+  {"color": "Purple", "title": "Maintained"},
+  {"color": "Green",  "title": "Repaired"},
+  {"color": "Gray",   "title": "Cancelled"}
+ ],
+ "title_field": "asset",
+ "track_changes": 1
+}

@@ -1,0 +1,100 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-04-20 16:57:45.327993",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "check_factor",
+  "threshold_percent",
+  "status",
+  "severity",
+  "fault_description",
+  "incident_percent",
+  "percent_above_threshold",
+  "proposed_action"
+ ],
+ "fields": [
+  {
+   "bold": 1,
+   "columns": 3,
+   "fieldname": "check_factor",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Check Factor",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "columns": 1,
+   "fieldname": "threshold_percent",
+   "fieldtype": "Percent",
+   "in_list_view": 1,
+   "label": "% Threshold",
+   "read_only": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "\nOK\nFault / Defect\nAffected\nNeeds Monitoring\nNot Applicable",
+   "reqd": 1
+  },
+  {
+   "columns": 1,
+   "depends_on": "eval:in_list(['Fault / Defect','Affected'], doc.status)",
+   "fieldname": "severity",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Severity",
+   "mandatory_depends_on": "eval:in_list(['Fault / Defect','Affected'], doc.status)",
+   "options": "\nLow\nMedium\nHigh\nCritical"
+  },
+  {
+   "depends_on": "eval:in_list(['Fault / Defect','Affected'], doc.status)",
+   "fieldname": "fault_description",
+   "fieldtype": "Small Text",
+   "label": "Fault / Issue Description",
+   "mandatory_depends_on": "eval:in_list(['Fault / Defect','Affected'], doc.status)"
+  },
+  {
+   "depends_on": "eval:in_list(['Fault / Defect','Affected'], doc.status)",
+   "description": "Actual incident % observed (e.g. % of crop affected, % of units faulty).",
+   "fieldname": "incident_percent",
+   "fieldtype": "Percent",
+   "label": "Incident %"
+  },
+  {
+   "depends_on": "eval:doc.threshold_percent && in_list(['Fault / Defect','Affected'], doc.status)",
+   "description": "Auto-calculated: Incident % minus % Threshold. Blank if no threshold set.",
+   "fieldname": "percent_above_threshold",
+   "fieldtype": "Percent",
+   "label": "% Above Threshold",
+   "read_only": 1
+  },
+  {
+   "description": "Recommended corrective action; carried forward when creating a Maintenance Task.",
+   "fieldname": "proposed_action",
+   "fieldtype": "Small Text",
+   "label": "Proposed Action"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-04-20 16:57:45.327993",
+ "modified_by": "Administrator",
+ "module": "Upande Asset",
+ "name": "Asset Check Sheet Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}
