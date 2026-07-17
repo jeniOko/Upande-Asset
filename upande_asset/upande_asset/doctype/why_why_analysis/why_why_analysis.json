@@ -1,0 +1,56 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "creation": "2025-09-22 15:08:46.554114",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_ki1d",
+  "why_1",
+  "cause",
+  "counter_measure",
+  "sr_no"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_ki1d",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "why_1",
+   "fieldtype": "Data",
+   "label": "Why_1"
+  },
+  {
+   "fieldname": "cause",
+   "fieldtype": "Data",
+   "label": "Cause"
+  },
+  {
+   "fieldname": "counter_measure",
+   "fieldtype": "Data",
+   "label": "Counter Measure"
+  },
+  {
+   "fieldname": "sr_no",
+   "fieldtype": "Data",
+   "label": "Sr No"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-07-17 16:01:49.007655",
+ "modified_by": "Administrator",
+ "module": "Upande Asset",
+ "name": "Why Why Analysis",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
