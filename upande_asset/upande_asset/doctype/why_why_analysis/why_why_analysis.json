@@ -19,23 +19,31 @@
    "fieldtype": "Section Break"
   },
   {
+   "columns": 2,
    "fieldname": "why_1",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Why_1"
   },
   {
+   "columns": 2,
    "fieldname": "cause",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Cause"
   },
   {
+   "columns": 2,
    "fieldname": "counter_measure",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Counter Measure"
   },
   {
+   "columns": 2,
    "fieldname": "sr_no",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Sr No"
   }
  ],
