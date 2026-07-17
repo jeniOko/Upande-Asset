@@ -264,6 +264,13 @@ app_include_css = "/assets/upande_asset/css/upande_asset.css"
 after_install = "upande_asset.upande_asset.install.after_install"
 after_migrate = "upande_asset.upande_asset.install.after_migrate"
 
+# Client Scripts for the asset module owned by this app.
+# Doctype-level custom fields / property setters live in ./custom/*.json
+# (auto-synced on migrate); Client Scripts are exported here as fixtures.
+fixtures = [
+	{"dt": "Client Script", "filters": [["name", "in", ["Reason for scrapping"]]]},
+]
+
 # -- Doc Events --------------------------------------------------
 # These replace the "Asset Repair Status Sync" and
 # "Asset Maintenance Status Sync" Server Scripts.
@@ -271,16 +278,12 @@ after_migrate = "upande_asset.upande_asset.install.after_migrate"
 # in ERPNext > Server Script list.
 
 doc_events = {
-    "Asset Repair": {
-        "on_update": [
-            "upande_asset.upande_asset.doctype.asset_repair_hooks.on_asset_repair_save"
-        ],
-    },
-    "Asset Maintenance": {
-        "on_update": [
-            "upande_asset.upande_asset.doctype.asset_repair_hooks.on_asset_maintenance_save"
-        ],
-    },
+	"Asset Repair": {
+		"on_update": ["upande_asset.upande_asset.doctype.asset_repair_hooks.on_asset_repair_save"],
+	},
+	"Asset Maintenance": {
+		"on_update": ["upande_asset.upande_asset.doctype.asset_repair_hooks.on_asset_maintenance_save"],
+	},
 }
 
 # -- Scheduler Events --------------------------------------------
@@ -288,9 +291,7 @@ doc_events = {
 # After adding this and deploying, disable that Server Script.
 
 scheduler_events = {
-    "daily": [
-        "upande_asset.upande_asset.scheduled_tasks.check_missed_asset_checks"
-    ],
+	"daily": ["upande_asset.upande_asset.scheduled_tasks.check_missed_asset_checks"],
 }
 
 # ============================================================
