@@ -51,10 +51,12 @@ _NUMBER_CARDS = [
 
 def after_install():
     _create_asset_repair_custom_fields()
+    _create_asset_task_custom_fields()
     _setup_workspace()
 
 
 def after_migrate():
+    _create_asset_task_custom_fields()
     _setup_workspace()
 
 
@@ -78,6 +80,38 @@ def _create_asset_repair_custom_fields():
             "description": "Check sheet that triggered this repair",
         },
     )
+
+
+def _create_asset_task_custom_fields():
+    """Let each site decide which kinds of asset carry a daily work plan.
+
+    Asset Task deliberately knows nothing about tractors. A category is opted in
+    by ticking custom_track_tasks, and custom_meter_type says whether its
+    operators read an hour meter or an odometer.
+    """
+    fields = [
+        {
+            "fieldname": "custom_track_tasks",
+            "label": "Track Daily Tasks",
+            "fieldtype": "Check",
+            "insert_after": "enable_cwip_accounting",
+            "default": "0",
+            "description": "Assets in this category can be given a daily work plan",
+        },
+        {
+            "fieldname": "custom_meter_type",
+            "label": "Meter Type",
+            "fieldtype": "Select",
+            "options": "\nHour Meter\nOdometer",
+            "insert_after": "custom_track_tasks",
+            "depends_on": "eval:doc.custom_track_tasks",
+            "description": "What the operator reads when starting and stopping work",
+        },
+    ]
+    for df in fields:
+        if frappe.db.has_column("Asset Category", df["fieldname"]):
+            continue
+        create_custom_field("Asset Category", df)
 
 
 # ── Number Cards ───────────────────────────────────────────────────────────────
