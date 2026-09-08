@@ -1,0 +1,401 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "naming_series:",
+ "creation": "2026-09-09 00:00:00",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "sb_plan",
+  "naming_series",
+  "work_date",
+  "tractor",
+  "tractor_name",
+  "asset_category",
+  "meter_type",
+  "cb1",
+  "implement",
+  "implement_name",
+  "operator",
+  "operator_name",
+  "company",
+  "sb_where",
+  "location",
+  "farm",
+  "block",
+  "blocks",
+  "cb2",
+  "task",
+  "task_subject",
+  "work_description",
+  "sb_target",
+  "planned_hours",
+  "planned_qty",
+  "cb3",
+  "uom",
+  "status",
+  "sb_actual",
+  "hour_meter_start",
+  "started_at",
+  "hour_meter_end",
+  "ended_at",
+  "actual_hours",
+  "cb4",
+  "actual_qty",
+  "fuel_litres",
+  "breakdown",
+  "sb_close",
+  "notes",
+  "check_sheet",
+  "completed_at",
+  "completed_by"
+ ],
+ "fields": [
+  {
+   "fieldname": "sb_plan",
+   "fieldtype": "Section Break",
+   "label": "Plan"
+  },
+  {
+   "default": "AST-.YYYY.-.#####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Series",
+   "options": "AST-.YYYY.-.#####"
+  },
+  {
+   "default": "Today",
+   "fieldname": "work_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "tractor",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Asset",
+   "options": "Asset",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "tractor.asset_name",
+   "fieldname": "tractor_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Asset Name",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "tractor.asset_category",
+   "fieldname": "asset_category",
+   "fieldtype": "Data",
+   "label": "Category",
+   "read_only": 1
+  },
+  {
+   "fieldname": "meter_type",
+   "fieldtype": "Select",
+   "label": "Meter Type",
+   "options": "Hour Meter\nOdometer",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "implement",
+   "fieldtype": "Link",
+   "label": "Implement / Trailer",
+   "options": "Asset"
+  },
+  {
+   "fetch_from": "implement.asset_name",
+   "fieldname": "implement_name",
+   "fieldtype": "Data",
+   "label": "Implement",
+   "read_only": 1
+  },
+  {
+   "fieldname": "operator",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Operator",
+   "options": "Employee"
+  },
+  {
+   "fetch_from": "operator.employee_name",
+   "fieldname": "operator_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Operator Name",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "tractor.company",
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sb_where",
+   "fieldtype": "Section Break",
+   "label": "Where and what"
+  },
+  {
+   "fieldname": "location",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Location",
+   "options": "Location"
+  },
+  {
+   "fieldname": "farm",
+   "fieldtype": "Link",
+   "label": "Farm",
+   "options": "Farm"
+  },
+  {
+   "fieldname": "block",
+   "fieldtype": "Link",
+   "label": "Block / Section",
+   "options": "Warehouse"
+  },
+  {
+   "fieldname": "blocks",
+   "fieldtype": "Table",
+   "label": "Blocks / Sections",
+   "options": "Asset Task Block"
+  },
+  {
+   "fieldname": "cb2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "task",
+   "fieldtype": "Link",
+   "label": "Task",
+   "options": "Task"
+  },
+  {
+   "fetch_from": "task.subject",
+   "fieldname": "task_subject",
+   "fieldtype": "Data",
+   "label": "Task Subject",
+   "read_only": 1
+  },
+  {
+   "fieldname": "work_description",
+   "fieldtype": "Small Text",
+   "label": "What is to be done"
+  },
+  {
+   "fieldname": "sb_target",
+   "fieldtype": "Section Break",
+   "label": "Target"
+  },
+  {
+   "fieldname": "planned_hours",
+   "fieldtype": "Float",
+   "label": "Planned Hours",
+   "precision": "2"
+  },
+  {
+   "fieldname": "planned_qty",
+   "fieldtype": "Float",
+   "label": "Planned Quantity",
+   "precision": "2"
+  },
+  {
+   "fieldname": "cb3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "uom",
+   "fieldtype": "Link",
+   "label": "UOM",
+   "options": "UOM"
+  },
+  {
+   "default": "Planned",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Planned\nIn Progress\nCompleted\nCancelled"
+  },
+  {
+   "fieldname": "sb_actual",
+   "fieldtype": "Section Break",
+   "label": "What actually happened"
+  },
+  {
+   "fieldname": "hour_meter_start",
+   "fieldtype": "Float",
+   "label": "Hour Meter Start",
+   "precision": "1"
+  },
+  {
+   "fieldname": "started_at",
+   "fieldtype": "Datetime",
+   "label": "Started At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "hour_meter_end",
+   "fieldtype": "Float",
+   "label": "Hour Meter End",
+   "precision": "1"
+  },
+  {
+   "fieldname": "ended_at",
+   "fieldtype": "Datetime",
+   "label": "Ended At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "actual_hours",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Actual Hours",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "actual_qty",
+   "fieldtype": "Float",
+   "label": "Actual Quantity",
+   "precision": "2"
+  },
+  {
+   "fieldname": "fuel_litres",
+   "fieldtype": "Float",
+   "label": "Fuel Issued (L)",
+   "precision": "2"
+  },
+  {
+   "default": "0",
+   "fieldname": "breakdown",
+   "fieldtype": "Check",
+   "label": "Broke down"
+  },
+  {
+   "fieldname": "sb_close",
+   "fieldtype": "Section Break",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "check_sheet",
+   "fieldtype": "Link",
+   "label": "Check Sheet",
+   "options": "Asset Check Sheet",
+   "read_only": 1
+  },
+  {
+   "fieldname": "completed_at",
+   "fieldtype": "Datetime",
+   "label": "Completed At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "completed_by",
+   "fieldtype": "Link",
+   "label": "Completed By",
+   "options": "User",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-09 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Upande Asset",
+ "name": "Asset Task",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Maintenance Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Maintenance User",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Farm Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Mechanic",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "show_title_field_in_link": 1,
+ "sort_field": "work_date",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "tractor_name",
+ "track_changes": 1
+}

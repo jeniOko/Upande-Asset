@@ -703,7 +703,7 @@
    "fetch_if_empty": 0,
    "fieldname": "custom_why_why_analysis",
    "fieldtype": "Table",
-   "hidden": 1,
+   "hidden": 0,
    "hide_border": 0,
    "hide_days": 0,
    "hide_seconds": 0,
@@ -1247,7 +1247,7 @@
    "property": "hidden",
    "property_type": "Check",
    "row_name": null,
-   "value": "1"
+   "value": "0"
   },
   {
    "_assign": null,

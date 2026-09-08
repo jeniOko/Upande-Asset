@@ -307,3 +307,91 @@ def create_check_sheet_from_mobile(payload):
         return {"name": cs.name, "submitted": True}
     except frappe.ValidationError as e:
         return {"name": cs.name, "submitted": False, "error": str(e)}
+
+@frappe.whitelist()
+def lookup_for_scan(asset: str | None = None, template: str | None = None, qr: str | None = None):
+	"""Resolve a scanned asset into the check sheet it needs.
+
+	Given an asset number (or the raw text off its QR label, whose first line is
+	the number), return the asset, the templates available for its category, and
+	the check factors of the chosen one. The page renders straight from this.
+	"""
+	asset = (asset or "").strip()
+	if not asset and qr:
+		asset = (qr.replace("\r", "\n").split("\n")[0] or "").strip()
+	if not asset:
+		return {"status": "error", "message": "Scan a code or type an asset number."}
+
+	a = frappe.db.get_value(
+		"Asset",
+		asset,
+		[
+			"name", "asset_name", "asset_category", "location", "company",
+			"custodian", "status", "docstatus", "item_code", "purchase_date",
+		],
+		as_dict=True,
+	)
+	if not a:
+		return {"status": "error", "message": f"No asset with the number {asset}"}
+
+	templates = frappe.get_all(
+		"Asset Check Sheet Template",
+		filters={"asset_category": a.asset_category},
+		fields=["name", "is_default", "frequency", "asset_maintenance_team"],
+		order_by="is_default desc, name asc",
+	)
+	chosen = (template or "").strip() or (templates[0]["name"] if templates else "")
+
+	sections, require_pct, require_action, team, frequency = [], 0, 0, None, None
+	if chosen:
+		tmpl = frappe.get_doc("Asset Check Sheet Template", chosen)
+		require_pct = tmpl.require_incident_percent or 0
+		require_action = tmpl.require_proposed_action or 0
+		team = tmpl.asset_maintenance_team
+		frequency = tmpl.frequency
+		for key in SECTIONS:
+			items = tmpl.get(f"section_{key}_items") or []
+			if not items:
+				continue
+			sections.append(
+				{
+					"key": key,
+					"label": tmpl.get(f"section_{key}_name") or f"Section {key.upper()}",
+					"items": [
+						{
+							"check_factor": i.check_factor,
+							"threshold_percent": i.threshold_percent or 0,
+							"notes": i.notes or "",
+						}
+						for i in items
+					],
+				}
+			)
+
+	custodian = ""
+	if a.custodian:
+		custodian = frappe.db.get_value("Employee", a.custodian, "employee_name") or a.custodian
+
+	last = frappe.get_all(
+		"Asset Check Sheet",
+		filters={"asset": a.name, "docstatus": ["<", 2]},
+		fields=["name", "check_date", "overall_status"],
+		order_by="check_date desc, modified desc",
+		limit=1,
+	)
+
+	return {
+		"status": "success",
+		"asset": a,
+		"custodian_name": custodian,
+		"qr_url": f"/files/qr-{a.name}.png",
+		"templates": templates,
+		"template": chosen,
+		"frequency": frequency,
+		"maintenance_team": team,
+		"sections": sections,
+		"require_incident_percent": require_pct,
+		"require_proposed_action": require_action,
+		"last_check": (last[0] if last else None),
+		"no_template": 0 if chosen else 1,
+	}
