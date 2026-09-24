@@ -3,774 +3,753 @@
 
 {% block head_include %}
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<style>
-/* ── Hide the site-level navbar (webshop / Frappe web header) ─────────── */
-nav.navbar, .navbar { display: none !important; }
-body { padding-top: 0 !important; }
-
-/* ── Reset & base ─────────────────────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #1a1a2e; }
-button { cursor: pointer; border: none; background: none; font-family: inherit; }
-input, select, textarea { font-family: inherit; }
-
-/* ── App shell ────────────────────────────────────────────────────────── */
-#acs-app { max-width: 520px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
-
-/* ── Top bar ──────────────────────────────────────────────────────────── */
-.topbar { background: #fff; padding: 14px 16px 10px; border-bottom: 1px solid #e4e6ea; position: sticky; top: 0; z-index: 10; }
-.topbar-row { display: flex; align-items: center; gap: 10px; }
-.topbar-back { font-size: 20px; color: #4b5563; line-height: 1; padding: 4px 6px 4px 0; }
-.topbar-title { font-size: 16px; font-weight: 600; flex: 1; }
-.topbar-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
-.topbar-user { font-size: 12px; color: #6b7280; }
-.topbar-desk-link { font-size: 11px; font-weight: 600; color: #2563eb; text-decoration: none; white-space: nowrap; }
-.topbar-desk-link:active { color: #1d4ed8; }
-.progress-bar-wrap { margin-top: 8px; height: 4px; background: #e5e7eb; border-radius: 2px; }
-.progress-bar-fill { height: 100%; background: #2563eb; border-radius: 2px; transition: width .3s ease; }
-
-/* ── Screens ──────────────────────────────────────────────────────────── */
-.screen { display: none; flex-direction: column; flex: 1; padding: 16px; gap: 12px; }
-.screen.active { display: flex; }
-
-/* ── Card ─────────────────────────────────────────────────────────────── */
-.card { background: #fff; border-radius: 12px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.07); }
-.card-title { font-size: 13px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 12px; }
-
-/* ── Form fields ──────────────────────────────────────────────────────── */
-.field-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
-.field-label { font-size: 13px; font-weight: 500; color: #374151; }
-.field-label span.req { color: #ef4444; }
-.field-input { border: 1.5px solid #d1d5db; border-radius: 8px; padding: 11px 12px; font-size: 15px; width: 100%; background: #fff; color: #111827; outline: none; transition: border-color .15s; -webkit-appearance: none; }
-.field-input:focus { border-color: #2563eb; }
-.field-input:disabled { background: #f9fafb; color: #9ca3af; }
-
-/* ── Section header ───────────────────────────────────────────────────── */
-.section-header { font-size: 18px; font-weight: 700; color: #111827; }
-.section-sub { font-size: 13px; color: #6b7280; margin-top: 2px; }
-
-/* ── Check item ───────────────────────────────────────────────────────── */
-.check-item { border-bottom: 1px solid #f3f4f6; padding: 14px 0; }
-.check-item:last-child { border-bottom: none; padding-bottom: 0; }
-.check-item-name { font-size: 15px; font-weight: 500; color: #111827; margin-bottom: 10px; }
-.check-item-threshold { font-size: 11px; color: #9ca3af; margin-top: -7px; margin-bottom: 8px; }
-
-/* ── Status buttons ───────────────────────────────────────────────────── */
-.status-btns { display: flex; gap: 6px; flex-wrap: wrap; }
-.status-btn { flex: 1; min-width: 60px; padding: 8px 4px; border-radius: 8px; font-size: 12px; font-weight: 600; text-align: center; border: 2px solid transparent; transition: all .15s; color: #374151; background: #f3f4f6; }
-.status-btn:active { transform: scale(.96); }
-.status-btn[data-val="OK"].active           { background: #d1fae5; border-color: #10b981; color: #065f46; }
-.status-btn[data-val="Fault / Defect"].active { background: #fee2e2; border-color: #ef4444; color: #7f1d1d; }
-.status-btn[data-val="Affected"].active     { background: #ffedd5; border-color: #f97316; color: #7c2d12; }
-.status-btn[data-val="Needs Monitoring"].active { background: #fef9c3; border-color: #eab308; color: #713f12; }
-.status-btn[data-val="Not Applicable"].active { background: #f3f4f6; border-color: #6b7280; color: #374151; }
-
-/* fault indicator chip on item row */
-.fault-chip { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 99px; margin-top: 6px; font-weight: 600; cursor: pointer; }
-.fault-chip.filled { background: #fee2e2; color: #7f1d1d; }
-.fault-chip.empty  { background: #fef2f2; color: #ef4444; border: 1px dashed #fca5a5; }
-
-/* ── Bottom sheet ─────────────────────────────────────────────────────── */
-.sheet-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 40; display: none; }
-.sheet-backdrop.open { display: block; }
-.bottom-sheet { position: fixed; bottom: 0; left: 0; right: 0; max-width: 520px; margin: 0 auto; background: #fff; border-radius: 20px 20px 0 0; z-index: 50; padding: 20px 20px 32px; transform: translateY(100%); transition: transform .3s ease; max-height: 88vh; overflow-y: auto; }
-.bottom-sheet.open { transform: translateY(0); }
-.sheet-handle { width: 40px; height: 4px; background: #d1d5db; border-radius: 2px; margin: 0 auto 16px; }
-.sheet-title { font-size: 17px; font-weight: 700; margin-bottom: 16px; }
-
-/* severity radio row */
-.sev-row { display: flex; gap: 8px; margin-bottom: 16px; }
-.sev-btn { flex: 1; padding: 9px 4px; border-radius: 8px; font-size: 12px; font-weight: 600; text-align: center; border: 2px solid #e5e7eb; color: #6b7280; background: #f9fafb; }
-.sev-btn.active[data-sev="Low"]      { border-color: #fbbf24; background: #fef9c3; color: #78350f; }
-.sev-btn.active[data-sev="Medium"]   { border-color: #f97316; background: #ffedd5; color: #7c2d12; }
-.sev-btn.active[data-sev="High"]     { border-color: #ef4444; background: #fee2e2; color: #7f1d1d; }
-.sev-btn.active[data-sev="Critical"] { border-color: #7c3aed; background: #ede9fe; color: #4c1d95; }
-textarea.field-input { resize: none; min-height: 72px; }
-
-/* ── Nav buttons ──────────────────────────────────────────────────────── */
-.nav-row { display: flex; gap: 10px; margin-top: auto; padding: 16px 0 0; }
-.btn-primary { flex: 1; background: #2563eb; color: #fff; padding: 14px; border-radius: 10px; font-size: 16px; font-weight: 600; }
-.btn-primary:active { background: #1d4ed8; }
-.btn-secondary { flex: 1; background: #fff; color: #374151; padding: 14px; border-radius: 10px; font-size: 16px; font-weight: 600; border: 1.5px solid #d1d5db; }
-.btn-secondary:active { background: #f9fafb; }
-.btn-full { flex: none; width: 100%; }
-.btn-success { background: #10b981; }
-.btn-success:active { background: #059669; }
-
-/* ── Success screen ───────────────────────────────────────────────────── */
-.success-icon { font-size: 64px; text-align: center; }
-.success-title { font-size: 22px; font-weight: 700; text-align: center; }
-.success-sub { font-size: 14px; color: #6b7280; text-align: center; }
-.doc-link { display: block; text-align: center; color: #2563eb; font-size: 14px; font-weight: 600; margin-top: 4px; text-decoration: none; }
-
-/* ── Spinner ──────────────────────────────────────────────────────────── */
-.spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: middle; margin-right: 6px; }
-@keyframes spin { to { transform: rotate(360deg); } }
-
-/* ── Toast ────────────────────────────────────────────────────────────── */
-.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #1f2937; color: #fff; padding: 10px 20px; border-radius: 8px; font-size: 14px; z-index: 100; opacity: 0; transition: opacity .25s; pointer-events: none; white-space: nowrap; max-width: 90vw; text-overflow: ellipsis; overflow: hidden; }
-.toast.show { opacity: 1; }
-</style>
 {% endblock %}
 
 {% block page_content %}
-<div id="acs-app">
+<style>
+:root{
+  --bg:#f6f7f9; --card:#fff; --line:#e4e7eb; --line2:#cfd4da;
+  --ink:#111827; --ink2:#6b7280; --ink3:#9ca3af;
+  --ok:#16a34a; --warn:#d97706; --bad:#dc2626; --info:#2563eb;
+  --f:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --mono:'JetBrains Mono','SF Mono',ui-monospace,Menlo,monospace;
+}
+.navbar,header,.page-breadcrumbs,.web-footer,footer,.website-edit-button,.btn-edit-page{display:none!important}
+body{background:var(--bg)!important;font-family:var(--f);color:var(--ink);margin:0!important}
+#acs{max-width:760px;margin:0 auto;padding:12px 12px 120px}
+.acs-h{display:flex;align-items:center;gap:10px;padding:14px 4px 12px}
+.acs-h h1{font-size:19px;font-weight:700;margin:0;letter-spacing:-.2px}
+.acs-h .sub{font-size:12px;color:var(--ink2)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+.btn{appearance:none;border:1px solid var(--line2);background:#fff;color:var(--ink);
+     border-radius:10px;padding:12px 16px;font-size:15px;font-weight:600;cursor:pointer;font-family:var(--f)}
+.btn:active{transform:translateY(1px)}
+a.btn{text-decoration:none;display:block;text-align:center}
+.btn-primary{background:var(--ink);color:#fff;border-color:var(--ink)}
+.btn-block{display:block;width:100%}
+.btn-lg{padding:16px;font-size:16px}
+input[type=text],input[type=number],input[type=date],select,textarea{
+  width:100%;box-sizing:border-box;border:1px solid var(--line2);border-radius:9px;
+  padding:11px 12px;font-size:15px;font-family:var(--f);background:#fff;color:var(--ink)}
+textarea{resize:vertical;min-height:64px}
+label.lbl{display:block;font-size:12px;font-weight:600;color:var(--ink2);margin:0 0 5px;text-transform:uppercase;letter-spacing:.4px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.muted{color:var(--ink2);font-size:13px}
+.hide{display:none!important}
+#reader{width:100%;border-radius:12px;overflow:hidden;margin-top:10px}
+/* asset card */
+.a-top{display:flex;gap:12px;align-items:flex-start}
+.a-qr{width:64px;height:64px;flex:0 0 64px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.a-id{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--ink2)}
+.a-name{font-size:17px;font-weight:700;line-height:1.2;margin:2px 0 4px}
+.a-loc{display:inline-block;background:var(--ink);color:#fff;border-radius:6px;
+      padding:3px 9px;font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+.a-meta{margin-top:10px;display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:13px}
+.a-meta dt{color:var(--ink2)}
+.a-meta dd{margin:0;font-weight:500}
+/* sections */
+.sec-h{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;
+       color:var(--ink2);margin:18px 4px 8px;display:flex;justify-content:space-between}
+.item{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:8px}
+.item.flag{border-color:var(--bad);box-shadow:0 0 0 2px rgba(220,38,38,.07)}
+.item .f{font-size:15px;font-weight:600;line-height:1.25}
+.item .n{font-size:12px;color:var(--ink3);margin-top:2px}
+.segs{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.seg{flex:1 1 auto;min-width:62px;text-align:center;border:1px solid var(--line2);background:#fff;
+     border-radius:8px;padding:9px 6px;font-size:12.5px;font-weight:600;cursor:pointer;user-select:none}
+.seg[data-on="1"]{color:#fff}
+.seg[data-v="OK"][data-on="1"]{background:var(--ok);border-color:var(--ok)}
+.seg[data-v="Fault / Defect"][data-on="1"]{background:var(--bad);border-color:var(--bad)}
+.seg[data-v="Affected"][data-on="1"]{background:var(--warn);border-color:var(--warn)}
+.seg[data-v="Needs Monitoring"][data-on="1"]{background:var(--info);border-color:var(--info)}
+.seg[data-v="Not Applicable"][data-on="1"]{background:var(--ink3);border-color:var(--ink3)}
+.detail{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);display:grid;gap:9px}
+.bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);
+     padding:10px 12px;display:flex;gap:10px;align-items:center;z-index:20}
+.bar .cnt{font-size:12px;color:var(--ink2);flex:1}
+.toast{position:fixed;left:12px;right:12px;bottom:76px;background:var(--ink);color:#fff;padding:12px 14px;
+       border-radius:10px;font-size:14px;z-index:40;box-shadow:0 6px 20px rgba(0,0,0,.18)}
+.toast.bad{background:var(--bad)} .toast.good{background:var(--ok)}
+.done{text-align:center;padding:30px 16px}
+.done .tick{font-size:44px} .done h2{margin:8px 0 4px;font-size:20px}
+.warnbox{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:10px;padding:11px 12px;font-size:13px;margin-bottom:12px}
+.tp{background:#0f172a;color:#fff;border-radius:12px;padding:13px 14px;margin-bottom:12px}
+.tp h3{margin:0 0 2px;font-size:13px;text-transform:uppercase;letter-spacing:.6px;opacity:.75;font-weight:700}
+.tp .hm{font-size:13px;opacity:.85;margin-bottom:10px}
+.tp .hm b{color:#fff}
+.job{background:#fff;color:var(--ink);border-radius:10px;padding:11px 12px;margin-top:8px}
+.job .jt{font-size:15px;font-weight:700;line-height:1.2}
+.job .js{font-size:12px;color:var(--ink2);margin-top:2px}
+.pill{display:inline-block;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:999px;
+      text-transform:uppercase;letter-spacing:.4px;margin-left:6px;vertical-align:1px}
+.pill.Planned{background:#e0e7ff;color:#3730a3}
+.pill.InProgress{background:#fef3c7;color:#92400e}
+.pill.Completed{background:#dcfce7;color:#166534}
+.pill.Cancelled{background:#f3f4f6;color:#6b7280}
+.jgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.jgrid .full{grid-column:1/-1}
+.tp .add{background:transparent;color:#fff;border:1px dashed rgba(255,255,255,.45);
+         border-radius:9px;padding:10px;width:100%;font-weight:600;cursor:pointer;margin-top:9px;font-family:var(--f)}
+.tp .none{font-size:13px;opacity:.8;padding:6px 0}
+.choose{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.choose button{padding:20px 12px;font-size:16px;font-weight:700;border-radius:12px;
+  border:1px solid var(--line2);background:#fff;cursor:pointer;font-family:var(--f);line-height:1.25}
+.choose button .ic{display:block;font-size:22px;margin-bottom:5px}
+.choose button[data-on="1"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.ac-wrap{position:relative}
+.ac-list{position:absolute;left:0;right:0;top:100%;z-index:30;background:#fff;
+  border:1px solid var(--line2);border-top:none;border-radius:0 0 9px 9px;
+  max-height:230px;overflow:auto;box-shadow:0 8px 22px rgba(0,0,0,.10)}
+.ac-list div{padding:10px 12px;font-size:14px;cursor:pointer;border-bottom:1px solid var(--line)}
+.ac-list div:last-child{border-bottom:none}
+.ac-list div:hover,.ac-list div.sel{background:#f1f5f9}
+.ac-list .h{color:var(--ink3);font-size:11.5px;margin-left:6px}
+.ac-empty{padding:10px 12px;font-size:13px;color:var(--ink3)}
+.netbar{position:fixed;top:0;left:0;right:0;z-index:60;padding:7px 12px;font-size:12.5px;
+  font-weight:600;text-align:center;color:#fff;display:none}
+.netbar.off{display:block;background:#b45309}
+.netbar.pend{display:block;background:#1d4ed8}
+.netbar span.act{text-decoration:underline;cursor:pointer;margin-left:8px}
+.planbadge{background:#eef2ff;border:1px solid #c7d2fe;color:#3730a3;border-radius:10px;
+  padding:11px 12px;font-size:13.5px;margin-bottom:12px;display:flex;
+  justify-content:space-between;align-items:center;gap:10px}
+.planbadge b{font-weight:700}
+.planbadge button{border:1px solid #3730a3;background:#3730a3;color:#fff;border-radius:8px;
+  padding:7px 12px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:var(--f);white-space:nowrap}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+.chip{background:var(--ink);color:#fff;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:600}
+.chip b{margin-left:6px;cursor:pointer;opacity:.7}
+.bigbtn{padding:15px;font-size:16px;font-weight:700}
+.btn-go{background:var(--ok);border-color:var(--ok);color:#fff}
+.btn-stop{background:var(--bad);border-color:var(--bad);color:#fff}
+.qsync{font-size:11.5px;color:var(--ink3);margin-top:6px}
+@media(max-width:420px){ .row2{grid-template-columns:1fr} }
+</style>
 
-  <!-- ── Top bar ─────────────────────────────────────────────────── -->
-  <div class="topbar">
-    <div class="topbar-row">
-      <button class="topbar-back" id="btn-back" style="display:none">&#8592;</button>
-      <span class="topbar-title" id="topbar-title">Asset Check Sheet</span>
-      <div class="topbar-right">
-        <a href="/app/asset-check-sheet" class="topbar-desk-link">Back To Desk</a>
-        <span class="topbar-user">{{ full_name }}</span>
-      </div>
-    </div>
-    <div class="progress-bar-wrap">
-      <div class="progress-bar-fill" id="progress-fill" style="width:0%"></div>
+<div class="netbar" id="netbar"></div>
+<div id="acs">
+  <div class="acs-h">
+    <div>
+      <h1>Asset Check Sheet</h1>
+      <div class="sub">Scan the label on the asset, then record what you see.</div>
     </div>
   </div>
 
-  <!-- ── Screen 1 : Asset selection ─────────────────────────────── -->
-  <div class="screen active" id="screen-asset">
+  <!-- STEP 1 -->
+  <div id="step1">
     <div class="card">
-      <div class="card-title">Start a new check</div>
-
-      <div class="field-group">
-        <label class="field-label">Check Date <span class="req">*</span></label>
-        <input type="date" class="field-input" id="inp-date" max="">
+      <button class="btn btn-primary btn-block btn-lg" id="btnScan">Scan QR code</button>
+      <div id="reader" class="hide"></div>
+      <button class="btn btn-block hide" id="btnStop" style="margin-top:8px">Stop camera</button>
+      <div style="margin:14px 0 6px;text-align:center" class="muted">or type the asset number</div>
+      <div class="row2">
+        <input type="text" id="manualId" placeholder="ASS-GH-00001" autocapitalize="characters" autocomplete="off">
+        <button class="btn" id="btnFind">Find asset</button>
       </div>
-
-      <div class="field-group">
-        <label class="field-label">Company <span class="req">*</span></label>
-        <select class="field-input" id="sel-company">
-          <option value="{{ company }}">{{ company }}</option>
-        </select>
-      </div>
-
-      <div class="field-group">
-        <label class="field-label">Asset Category <span class="req">*</span></label>
-        <select class="field-input" id="sel-category">
-          <option value="">Loading…</option>
-        </select>
-      </div>
-
-      <div class="field-group">
-        <label class="field-label">Asset <span class="req">*</span></label>
-        <select class="field-input" id="sel-asset" disabled>
-          <option value="">Select category first</option>
-        </select>
-      </div>
-
-      <div class="field-group" style="margin-bottom:0">
-        <label class="field-label">Template <span class="req">*</span></label>
-        <select class="field-input" id="sel-template" disabled>
-          <option value="">Select asset first</option>
-        </select>
-      </div>
-    </div>
-
-    <div class="nav-row" style="padding-top:4px">
-      <button class="btn-primary" id="btn-start">Begin Check →</button>
     </div>
   </div>
 
-  <!-- ── Screen 2 : Sections (rendered dynamically) ─────────────── -->
-  <div class="screen" id="screen-section">
+  <!-- STEP 2 -->
+  <div id="step2" class="hide">
     <div class="card">
-      <div class="section-header" id="sec-title">Section A</div>
-      <div class="section-sub" id="sec-counter"></div>
-      <div id="sec-items" style="margin-top:12px"></div>
-    </div>
-    <div class="nav-row">
-      <button class="btn-secondary" id="btn-sec-prev">← Back</button>
-      <button class="btn-primary"   id="btn-sec-next">Next →</button>
-    </div>
-  </div>
-
-  <!-- ── Screen 3 : Notes + submit ─────────────────────────────── -->
-  <div class="screen" id="screen-notes">
-    <div class="card">
-      <div class="card-title">Review &amp; Submit</div>
-      <div id="notes-summary" style="margin-bottom:14px;font-size:14px;color:#374151;line-height:1.6"></div>
-      <div class="field-group" style="margin-bottom:0">
-        <label class="field-label">Additional Notes</label>
-        <textarea class="field-input" id="inp-notes" rows="3" placeholder="Optional observations…"></textarea>
+      <div class="a-top">
+        <img class="a-qr" id="aQr" alt="">
+        <div style="min-width:0;flex:1">
+          <div class="a-id" id="aId"></div>
+          <div class="a-name" id="aName"></div>
+          <span class="a-loc" id="aLoc"></span>
+        </div>
+      </div>
+      <dl class="a-meta" id="aMeta"></dl>
+      <div style="margin-top:12px">
+        <label class="lbl" for="tplSel">Check sheet</label>
+        <select id="tplSel"></select>
+      </div>
+      <div class="row2" style="margin-top:10px">
+        <div><label class="lbl" for="chkDate">Date</label><input type="date" id="chkDate"></div>
+        <div style="display:flex;align-items:flex-end"><button class="btn btn-block" id="btnOther">Different asset</button></div>
       </div>
     </div>
-    <div class="nav-row">
-      <button class="btn-secondary" id="btn-notes-back">← Back</button>
-      <button class="btn-primary btn-success" id="btn-submit">Submit Check Sheet</button>
+    <div id="planBadge" class="planbadge hide"></div>
+    <div id="tractorPanel" class="hide"></div>
+    <div id="chooser" class="choose hide">
+      <button id="modeInspect"><span class="ic">&#9745;</span>Inspect</button>
+      <button id="modeTask"><span class="ic">&#43;</span>Add a task</button>
+    </div>
+    <div id="taskForm" class="card hide">
+      <label class="lbl">Task</label>
+      <div class="ac-wrap"><input type="text" id="tfTask" placeholder="Start typing, e.g. plough" autocomplete="off"></div>
+      <div class="row2" style="margin-top:10px">
+        <div><label class="lbl">Blocks / Sections</label>
+          <div class="ac-wrap"><input type="text" id="tfBlock" placeholder="add one, then another" autocomplete="off"></div>
+          <div class="chips" id="tfBlockChips"></div></div>
+        <div><label class="lbl">Operator</label>
+          <div class="ac-wrap"><input type="text" id="tfOperator" placeholder="optional" autocomplete="off"></div></div>
+      </div>
+      <div class="row2" style="margin-top:10px">
+        <div><label class="lbl">Planned hours</label><input type="number" step="0.5" id="tfHours"></div>
+        <div><label class="lbl">Implement</label>
+          <div class="ac-wrap"><input type="text" id="tfImplement" placeholder="trailer, gyromower…" autocomplete="off"></div></div>
+      </div>
+      <div class="row2" style="margin-top:10px">
+        <div><label class="lbl">Planned quantity</label><input type="number" step="0.1" id="tfQty"></div>
+        <div><label class="lbl">UOM</label>
+          <div class="ac-wrap"><input type="text" id="tfUom" placeholder="Acre, Hour, Trip…" autocomplete="off"></div></div>
+      </div>
+      <div style="margin-top:10px"><label class="lbl">Notes</label>
+        <input type="text" id="tfNotes" placeholder="anything the operator should know"></div>
+      <div class="row2" style="margin-top:14px">
+        <button class="btn" id="tfCancel">Cancel</button>
+        <button class="btn btn-primary" id="tfSave">Add task</button>
+      </div>
+    </div>
+    <div id="noTpl" class="warnbox hide"></div>
+    <div id="sections"></div>
+    <div class="card" id="notesCard">
+      <label class="lbl" for="notes">Additional notes</label>
+      <textarea id="notes" placeholder="Anything else worth recording"></textarea>
     </div>
   </div>
 
-  <!-- ── Screen 4 : Success ─────────────────────────────────────── -->
-  <div class="screen" id="screen-success" style="justify-content:center;gap:16px">
-    <div class="success-icon">✅</div>
-    <div class="success-title">Check Sheet Saved</div>
-    <div class="success-sub" id="success-sub"></div>
-    <a href="#" class="doc-link" id="success-link">Open in desk →</a>
-    <button class="btn-primary btn-full" id="btn-new-check" style="margin-top:8px">Start Another Check</button>
-  </div>
-
-</div><!-- #acs-app -->
-
-<!-- ── Bottom sheet : Fault detail ────────────────────────────────── -->
-<div class="sheet-backdrop" id="sheet-backdrop"></div>
-<div class="bottom-sheet" id="bottom-sheet">
-  <div class="sheet-handle"></div>
-  <div class="sheet-title" id="sheet-item-name"></div>
-
-  <div class="field-group">
-    <label class="field-label">Severity <span class="req">*</span></label>
-    <div class="sev-row">
-      <button class="sev-btn" data-sev="Low">Low</button>
-      <button class="sev-btn" data-sev="Medium">Med</button>
-      <button class="sev-btn" data-sev="High">High</button>
-      <button class="sev-btn" data-sev="Critical">Critical</button>
+  <!-- DONE -->
+  <div id="step3" class="hide">
+    <div class="card done">
+      <div class="tick">&#10003;</div>
+      <h2 id="dTitle">Check sheet saved</h2>
+      <div class="muted" id="dSub"></div>
+      <div style="margin-top:18px"><button class="btn btn-primary btn-block btn-lg" id="btnAgain">Check another asset</button></div>
     </div>
-  </div>
-
-  <div class="field-group">
-    <label class="field-label">Fault Description <span class="req">*</span></label>
-    <textarea class="field-input" id="sheet-desc" rows="3" placeholder="Describe the fault…"></textarea>
-  </div>
-
-  <div class="field-group" id="field-incident" style="display:none">
-    <label class="field-label">Incident % <span class="req">*</span></label>
-    <input type="number" class="field-input" id="sheet-incident" min="0" max="100" placeholder="0–100">
-  </div>
-
-  <div class="field-group" style="margin-bottom:0">
-    <label class="field-label">Proposed Action</label>
-    <textarea class="field-input" id="sheet-action" rows="2" placeholder="Recommended fix…"></textarea>
-  </div>
-
-  <div class="nav-row" style="margin-top:16px">
-    <button class="btn-secondary" id="btn-sheet-cancel">Cancel</button>
-    <button class="btn-primary"   id="btn-sheet-done">Save Details</button>
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
-{% endblock %}
+<div class="bar hide" id="bar">
+  <div class="cnt" id="cnt"></div>
+  <button class="btn btn-primary" id="btnSubmit">Submit</button>
+</div>
 
-{% block script %}
+<!-- served from the app, not a CDN: this page is built to keep working on a bad connection -->
+<script src="/assets/upande_asset/vendor/html5-qrcode.min.js"></script>
 <script>
-// ── State ─────────────────────────────────────────────────────────────
-const S = {
-  company:        "{{ company }}",
-  check_date:     new Date().toISOString().slice(0,10),
-  asset:          "",
-  asset_name:     "",
-  asset_category: "",
-  template:       "",
-  template_doc:   null,
-  sections:       {},          // {a: [{check_factor,threshold_percent,status,...},...], ...}
-  active_secs:    [],          // letters with at least one item
-  sec_idx:        0,           // index into active_secs
-  fault_key:      null,        // "{sec}:{idx}" of item being edited in sheet
-  require_incident: false,
-  require_action:   false,
-  // Server-side user defaults — used to auto-select dropdowns on load
-  _def_category:  "{{ default_asset_category }}",
-  _def_asset:     "{{ default_asset }}",
-};
-
-const FAULT_STATUSES = ["Fault / Defect", "Affected"];
-const STATUS_LABELS  = {
-  "OK":               "✓ OK",
-  "Fault / Defect":   "✗ Fault",
-  "Affected":         "⚠ Affected",
-  "Needs Monitoring": "◉ Monitor",
-  "Not Applicable":   "— N/A",
-};
-
-// ── DOM helpers ────────────────────────────────────────────────────────
-const $  = id => document.getElementById(id);
-const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html) e.innerHTML = html; return e; };
-
-function showScreen(id) {
-  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
-  $(id).classList.add("active");
-}
-
-function setProgress(frac) {
-  $("progress-fill").style.width = (frac * 100) + "%";
-}
-
-function toast(msg, ms = 2800) {
-  const t = $("toast");
-  t.textContent = msg;
-  t.classList.add("show");
-  setTimeout(() => t.classList.remove("show"), ms);
-}
-
-// ── API helpers ────────────────────────────────────────────────────────
-// Use fetch directly — more reliable than frappe.call on www pages.
-function getCsrf() {
-  // frappe injects csrf_token into the page context
-  if (typeof frappe !== "undefined" && frappe.csrf_token) return frappe.csrf_token;
-  const m = document.cookie.match(/csrftoken=([^;]+)/);
-  return m ? m[1] : "";
-}
-
-function api(method, args) {
-  return fetch("/api/method/" + method, {
-    method:  "POST",
-    headers: {
-      "Content-Type":       "application/json",
-      "X-Frappe-CSRF-Token": getCsrf(),
-    },
-    body: JSON.stringify(args),
-  })
-  .then(r => r.json())
-  .then(data => {
-    if (data.exception || data.exc_type) throw new Error(data.exception || data.exc_type);
-    return data.message;
-  });
-}
-
-// ── Init ───────────────────────────────────────────────────────────────
-document.addEventListener("DOMContentLoaded", () => {
-  $("inp-date").value = S.check_date;
-  $("inp-date").max   = S.check_date; // today — prevents picking future dates via the picker
-  loadCompanies();
-  loadCategories();
-  bindAssetScreen();
-  bindSectionScreen();
-  bindNotesScreen();
-  bindSheet();
-  $("btn-back").addEventListener("click", goBack);
-  $("btn-new-check").addEventListener("click", () => location.reload());
-});
-
-function loadCompanies() {
-  api("frappe.client.get_list", {
-    doctype: "Company", fields: ["name"], limit: 50, order_by: "name asc",
-  }).then(rows => {
-    const sel = $("sel-company");
-    sel.innerHTML = rows.map(r =>
-      `<option value="${r.name}"${r.name === S.company ? " selected" : ""}>${r.name}</option>`
-    ).join("");
-  }).catch(() => {}); // keep default option on error
-}
-
-// ── Asset screen ───────────────────────────────────────────────────────
-function loadCategories() {
-  api("frappe.client.get_list", {
-    doctype: "Asset Category", fields: ["name"], limit: 100, order_by: "name asc"
-  }).then(rows => {
-    const sel = $("sel-category");
-    sel.innerHTML = '<option value="">Select category…</option>' +
-      rows.map(r => `<option value="${r.name}">${r.name}</option>`).join("");
-    // Auto-select user's default category if it exists in the list
-    if (S._def_category && rows.some(r => r.name === S._def_category)) {
-      sel.value = S._def_category;
-      sel.dispatchEvent(new Event("change")); // triggers asset list load
-    }
-  });
-}
-
-function bindAssetScreen() {
-  $("sel-company").addEventListener("change", function () {
-    S.company = this.value;
-  });
-
-  $("sel-category").addEventListener("change", function () {
-    S.asset_category = this.value;
-    $("sel-asset").innerHTML    = '<option value="">Loading…</option>';
-    $("sel-asset").disabled     = true;
-    $("sel-template").innerHTML = '<option value="">Select asset first</option>';
-    $("sel-template").disabled  = true;
-    if (!this.value) return;
-    api("frappe.client.get_list", {
-      doctype: "Asset", fields: ["name","asset_name"],
-      filters: {asset_category: this.value, docstatus: 1},
-      limit: 200, order_by: "asset_name asc"
-    }).then(rows => {
-      const sel = $("sel-asset");
-      sel.disabled = false;
-      sel.innerHTML = '<option value="">Select asset…</option>' +
-        rows.map(r => `<option value="${r.name}">${r.asset_name || r.name}</option>`).join("");
-      // Auto-select user's default asset if it exists in this category's list
-      if (S._def_asset && rows.some(r => r.name === S._def_asset)) {
-        sel.value = S._def_asset;
-        sel.dispatchEvent(new Event("change")); // triggers template load
-      }
-    });
-  });
-
-  $("sel-asset").addEventListener("change", function () {
-    S.asset      = this.value;
-    S.asset_name = this.options[this.selectedIndex]?.text || "";
-    $("sel-template").innerHTML = '<option value="">Loading…</option>';
-    $("sel-template").disabled  = true;
-    if (!this.value) return;
-    api("frappe.client.get_list", {
-      doctype: "Asset Check Sheet Template",
-      fields:  ["name","template_name","is_default"],
-      filters: {asset_category: S.asset_category},
-      limit: 50, order_by: "is_default desc, template_name asc"
-    }).then(rows => {
-      const sel = $("sel-template");
-      sel.disabled = false;
-      sel.innerHTML = '<option value="">Select template…</option>' +
-        rows.map(r => `<option value="${r.name}"${r.is_default?" selected":""}>${r.template_name || r.name}</option>`).join("");
-      // auto-select if only one or default found
-      if (sel.selectedIndex < 1 && rows.length === 1) sel.value = rows[0].name;
-      sel.dispatchEvent(new Event("change"));
-    });
-  });
-
-  $("sel-template").addEventListener("change", function () {
-    S.template = this.value;
-  });
-
-  $("inp-date").addEventListener("change", function () {
-    S.check_date = this.value;
-  });
-
-  $("btn-start").addEventListener("click", async () => {
-    if (!S.check_date)     { toast("Please set the Check Date"); return; }
-    if (S.check_date > new Date().toISOString().slice(0, 10)) {
-      toast("Check date cannot be in the future"); return;
-    }
-    if (!S.company)        { toast("Please select a Company"); return; }
-    if (!S.asset_category) { toast("Please select an Asset Category"); return; }
-    if (!S.asset)          { toast("Please select an Asset"); return; }
-    if (!S.template)       { toast("Please select a Template"); return; }
-
-    // Validate before opening the wizard — no duplicate allowed
-    $("btn-start").disabled = true;
-    $("btn-start").innerHTML = '<span class="spinner"></span>Checking…';
-    try {
-      const dup = await api(
-        "upande_asset.upande_asset.doctype.asset_check_sheet.asset_check_sheet.check_duplicate_check_sheet",
-        { asset: S.asset, check_date: S.check_date, template: S.template }
-      );
-      if (dup) {
-        toast(`Check sheet ${dup} already exists for this asset, template and date`);
-        $("btn-start").disabled = false;
-        $("btn-start").textContent = "Begin Check →";
-        return;
-      }
-      loadTemplate(); // sets its own loading state
-    } catch (_) {
-      toast("Could not validate — please check your connection");
-      $("btn-start").disabled = false;
-      $("btn-start").textContent = "Begin Check →";
-    }
-  });
-}
-
-// ── Load template + build section state ───────────────────────────────
-function loadTemplate() {
-  $("btn-start").disabled = true;
-  $("btn-start").innerHTML = '<span class="spinner"></span>Loading…';
-  api("frappe.client.get", {doctype: "Asset Check Sheet Template", name: S.template})
-    .then(tmpl => {
-      S.template_doc      = tmpl;
-      S.require_incident  = !!tmpl.require_incident_percent;
-      S.require_action    = !!tmpl.require_proposed_action;
-      S.sections          = {};
-      S.active_secs       = [];
-
-      ["a","b","c","d","e","f"].forEach(sec => {
-        const items = (tmpl[`section_${sec}_items`] || []);
-        if (!items.length) return;
-        S.active_secs.push(sec);
-        S.sections[sec] = items.map(src => ({
-          check_factor:      src.check_factor || "",
-          threshold_percent: src.threshold_percent || null,
-          status:            "",
-          severity:          "",
-          fault_description: "",
-          incident_percent:  null,
-          proposed_action:   "",
-        }));
-      });
-
-      if (!S.active_secs.length) { toast("Template has no check items"); $("btn-start").disabled = false; $("btn-start").textContent = "Begin Check →"; return; }
-      S.sec_idx = 0;
-      showSectionScreen();
-    })
-    .catch(() => { $("btn-start").disabled = false; $("btn-start").textContent = "Begin Check →"; toast("Failed to load template"); });
-}
-
-// ── Section screen ─────────────────────────────────────────────────────
-function showSectionScreen() {
-  const sec     = S.active_secs[S.sec_idx];
-  const label   = S.template_doc[`section_${sec}_name`] || `Section ${sec.toUpperCase()}`;
-  const total   = S.active_secs.length;
-
-  $("topbar-title").textContent = label;
-  $("btn-back").style.display   = "";
-  $("sec-title").textContent    = label;
-  $("sec-counter").textContent  = `Section ${S.sec_idx + 1} of ${total}`;
-  setProgress((S.sec_idx + 1) / (total + 1));
-
-  $("btn-sec-prev").style.display = S.sec_idx === 0 ? "none" : "";
-  $("btn-sec-next").textContent   = S.sec_idx < total - 1 ? "Next →" : "Review →";
-
-  renderItems(sec);
-  showScreen("screen-section");
-}
-
-function renderItems(sec) {
-  const container = $("sec-items");
-  container.innerHTML = "";
-  (S.sections[sec] || []).forEach((item, idx) => {
-    const wrap = el("div", "check-item");
-    wrap.dataset.sec = sec;
-    wrap.dataset.idx = idx;
-
-    const nameEl = el("div", "check-item-name", escHtml(item.check_factor));
-    wrap.appendChild(nameEl);
-
-    if (item.threshold_percent) {
-      wrap.appendChild(el("div", "check-item-threshold", `Threshold: ${item.threshold_percent}%`));
-    }
-
-    // Status buttons
-    const btns = el("div", "status-btns");
-    Object.entries(STATUS_LABELS).forEach(([val, lbl]) => {
-      const b = el("button", "status-btn" + (item.status === val ? " active" : ""));
-      b.dataset.val = val;
-      b.textContent = lbl;
-      b.addEventListener("click", () => onStatusClick(sec, idx, val, wrap));
-      btns.appendChild(b);
-    });
-    wrap.appendChild(btns);
-
-    // Fault chip (shown when fault is selected)
-    if (FAULT_STATUSES.includes(item.status)) {
-      const chip = el("button", item.fault_description ? "fault-chip filled" : "fault-chip empty");
-      chip.textContent = item.fault_description ? "✏ Edit fault details" : "⚠ Tap to add fault details";
-      chip.addEventListener("click", () => openSheet(sec, idx));
-      wrap.appendChild(chip);
-    }
-
-    container.appendChild(wrap);
-  });
-}
-
-function onStatusClick(sec, idx, val, wrap) {
-  S.sections[sec][idx].status = val;
-  // Clear fault data if switching away from fault
-  if (!FAULT_STATUSES.includes(val)) {
-    S.sections[sec][idx].severity         = "";
-    S.sections[sec][idx].fault_description = "";
-    S.sections[sec][idx].incident_percent  = null;
-    S.sections[sec][idx].proposed_action   = "";
+function acsInit(){
+  var STATUSES=['OK','Fault / Defect','Affected','Needs Monitoring','Not Applicable'];
+  var SHORT={'OK':'OK','Fault / Defect':'Fault','Affected':'Affected','Needs Monitoring':'Monitor','Not Applicable':'N/A'};
+  var SEVERITIES=['Low','Medium','High','Critical'];
+  var D=null, scanner=null, busy=false;
+  if(document.body.getAttribute('frappe-session-status')==='logged-out'){
+    document.getElementById('acs').innerHTML=
+      '<div class="card" style="text-align:center;padding:34px 16px">'+
+      '<h2 style="margin:0 0 6px;font-size:20px">Please sign in</h2>'+
+      '<div class="muted">You need to be logged in to record a check sheet.</div>'+
+      '<div style="margin-top:18px"><a class="btn btn-primary btn-lg" '+
+      'href="/login?redirect-to=%2Fasset-check">Log in</a></div></div>';
+    return;
   }
-  // Re-render just this item
-  const container = $("sec-items");
-  const old = container.querySelector(`[data-sec="${sec}"][data-idx="${idx}"]`);
-  const tmp = document.createElement("div");
-  tmp.dataset.sec = sec;
-  tmp.dataset.idx = idx;
-  container.replaceChild(tmp, old);
-  // Re-render by replacing the placeholder with a fresh item node
-  const fresh = container;
-  renderItems(sec); // simplest: re-render whole section
 
-  // If fault selected, immediately open sheet
-  if (FAULT_STATUSES.includes(val)) openSheet(sec, idx);
-}
-
-function bindSectionScreen() {
-  $("btn-sec-prev").addEventListener("click", () => {
-    if (S.sec_idx > 0) { S.sec_idx--; showSectionScreen(); }
-    else goBack();
-  });
-  $("btn-sec-next").addEventListener("click", () => {
-    const sec = S.active_secs[S.sec_idx];
-    const unanswered = (S.sections[sec] || []).filter(i => !i.status);
-    if (unanswered.length) {
-      toast(`${unanswered.length} item(s) still need a status — please review all`);
-      // Highlight unanswered items
-      document.querySelectorAll(".check-item").forEach(wrap => {
-        const idx = +wrap.dataset.idx;
-        const item = S.sections[sec][idx];
-        wrap.style.background = item && !item.status ? "#fff7ed" : "";
-        wrap.style.borderRadius = item && !item.status ? "8px" : "";
-      });
+  var QKEY='acsQueue', CKEY='acsCache';
+  function qGet(){ try{return JSON.parse(localStorage.getItem(QKEY)||'[]');}catch(e){return [];} }
+  function qSet(v){ try{localStorage.setItem(QKEY,JSON.stringify(v));}catch(e){} paintNet(); }
+  function qPush(method,args,label){ var q=qGet(); q.push({method:method,args:args,label:label,ts:Date.now()}); qSet(q); }
+  function cacheGet(k){ try{return JSON.parse(localStorage.getItem(CKEY+':'+k)||'null');}catch(e){return null;} }
+  function cacheSet(k,v){ try{localStorage.setItem(CKEY+':'+k,JSON.stringify(v));}catch(e){} }
+  function paintNet(){
+    var b=el('netbar'); if(!b) return;
+    var n=qGet().length, off=!navigator.onLine;
+    b.className='netbar'+(off?' off':(n?' pend':''));
+    if(off) b.innerHTML='Offline &mdash; work is being saved on this phone'+(n?' ('+n+' waiting)':'');
+    else if(n) b.innerHTML=n+' change'+(n>1?'s':'')+' waiting to sync<span class="act" id="syncNow">Sync now</span>';
+    else b.innerHTML='';
+    var sn=el('syncNow'); if(sn) sn.onclick=flushQueue;
+    document.getElementById('acs').style.paddingTop=(off||n)?'34px':'12px';
+  }
+  var flushing=false;
+  function flushQueue(done){
+    if(flushing || !navigator.onLine){ done&&done(); return; }
+    var q=qGet(); if(!q.length){ done&&done(); return; }
+    flushing=true;
+    var item=q[0];
+    rawApi(item.method,item.args,function(m){
+      var q2=qGet(); q2.shift(); qSet(q2); flushing=false;
+      if(m && m.status==='error') toast('Sync problem: '+(m.message||'')+' ('+(item.label||item.method)+')','bad');
+      flushQueue(done);
+    },function(){ flushing=false; done&&done(); });
+  }
+  /* These five are Server Scripts on kaitet-group.upande.com and app code
+     here, so the page is identical on both and only the prefix moves. */
+  var API_NS='upande_asset.api.mobile.';
+  function rawApi(method,args,ok,fail){
+    if(window.frappe && frappe.call){
+      frappe.call({method:API_NS+method,args:args,
+        callback:function(r){ok(r.message||{});},
+        error:function(){fail&&fail();}});
       return;
     }
-    if (S.sec_idx < S.active_secs.length - 1) {
-      S.sec_idx++;
-      showSectionScreen();
-    } else {
-      showNotesScreen();
-    }
-  });
-}
-
-function goBack() {
-  if ($("screen-section").classList.contains("active") && S.sec_idx > 0) {
-    S.sec_idx--; showSectionScreen();
-  } else {
-    $("btn-back").style.display = "none";
-    $("topbar-title").textContent = "Asset Check Sheet";
-    setProgress(0);
-    $("btn-start").disabled = false;
-    $("btn-start").textContent = "Begin Check →";
-    showScreen("screen-asset");
+    var body=new FormData();
+    Object.keys(args||{}).forEach(function(k){body.append(k,args[k]==null?'':args[k]);});
+    var hdr={'X-Requested-With':'XMLHttpRequest'};
+    var tok=(window.frappe&&frappe.csrf_token)||
+            (document.querySelector('meta[name=csrf-token]')||{}).content;
+    if(tok) hdr['X-Frappe-CSRF-Token']=tok;
+    fetch('/api/method/'+API_NS+method,{method:'POST',headers:hdr,body:body,credentials:'same-origin'})
+      .then(function(r){return r.json();})
+      .then(function(j){ok((j&&j.message)||{});})
+      .catch(function(){fail&&fail();});
   }
-}
-
-// ── Notes / review screen ──────────────────────────────────────────────
-function showNotesScreen() {
-  $("topbar-title").textContent = "Review";
-  setProgress(1);
-
-  // Build summary
-  let faultCount = 0, totalCount = 0;
-  S.active_secs.forEach(sec => {
-    (S.sections[sec] || []).forEach(item => {
-      totalCount++;
-      if (FAULT_STATUSES.includes(item.status)) faultCount++;
-    });
-  });
-  const color = faultCount ? "#ef4444" : "#10b981";
-  $("notes-summary").innerHTML =
-    `<b>Asset:</b> ${escHtml(S.asset_name)}<br>` +
-    `<b>Date:</b> ${S.check_date}<br>` +
-    `<b>Items checked:</b> ${totalCount}<br>` +
-    `<b style="color:${color}">Faults / Issues: ${faultCount}</b>`;
-
-  showScreen("screen-notes");
-}
-
-function bindNotesScreen() {
-  $("btn-notes-back").addEventListener("click", () => {
-    S.sec_idx = S.active_secs.length - 1;
-    showSectionScreen();
-  });
-  $("btn-submit").addEventListener("click", submitCheckSheet);
-}
-
-// ── Submit ─────────────────────────────────────────────────────────────
-function submitCheckSheet() {
-  // Validate faults have details
-  for (const sec of S.active_secs) {
-    for (const item of (S.sections[sec] || [])) {
-      if (FAULT_STATUSES.includes(item.status) && !item.severity) {
-        toast(`"${item.check_factor}" — please add fault details`);
+  /* writes queue when offline; reads fall back to cache */
+  var WRITES={'tractor_day_save':1,'asset_check_submit':1};
+  function api(method,args,ok,fail){
+    if(!navigator.onLine && WRITES[method]){
+      qPush(method,args,args&&args.data?'job update':method);
+      ok({status:'success',offline:1,message:'Saved on this phone, will sync'});
+      return;
+    }
+    rawApi(method,args,function(m){
+      if(method==='tractor_day_lookup' && m && m.status==='success') cacheSet('td:'+(args.tractor||''),m);
+      if(method==='asset_check_lookup' && m && m.status==='success') cacheSet('ac:'+(args.asset||''),m);
+      ok(m);
+    },function(){
+      if(WRITES[method]){
+        qPush(method,args,args&&args.data?'job update':method);
+        ok({status:'success',offline:1,message:'Saved on this phone, will sync'});
         return;
       }
+      var c=null;
+      if(method==='tractor_day_lookup') c=cacheGet('td:'+(args.tractor||''));
+      if(method==='asset_check_lookup') c=cacheGet('ac:'+(args.asset||''));
+      if(c){ c.__cached=1; ok(c); return; }
+      fail&&fail();
+    });
+  }
+  window.addEventListener('online',function(){ paintNet(); flushQueue(function(){ paintNet(); if(D) loadTractor(); }); });
+  window.addEventListener('offline',paintNet);
+  function el(id){return document.getElementById(id);}
+  function show(id,on){el(id).classList[on?'remove':'add']('hide');}
+  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function toast(msg,kind){
+    var t=document.createElement('div'); t.className='toast '+(kind||'');
+    t.textContent=msg; document.body.appendChild(t);
+    setTimeout(function(){t.remove();},kind==='bad'?5200:2800);
+  }
+  function today(){var d=new Date();return d.toISOString().slice(0,10);}
+
+  /* ---------- scanning ---------- */
+  function assetFromScan(txt){
+    if(!txt) return '';
+    var first=String(txt).replace(/\r/g,'\n').split('\n')[0].trim();
+    var m=first.match(/([A-Z]{2,4}-[A-Z]{2}-\d{3,6})/i);
+    if(m) return m[1].toUpperCase();
+    return first.toUpperCase();
+  }
+  el('btnScan').onclick=function(){
+    if(typeof Html5Qrcode==='undefined'){
+      toast('Camera scanner could not load. Type the number instead.','bad'); return;
     }
+    show('reader',true); show('btnStop',true); el('btnScan').classList.add('hide');
+    scanner=new Html5Qrcode('reader');
+    scanner.start({facingMode:'environment'},{fps:10,qrbox:{width:230,height:230}},
+      function(txt){ stopScan(); lookup(assetFromScan(txt)); },
+      function(){} 
+    ).catch(function(e){
+      toast('Could not open the camera: '+e,'bad');
+      stopScan();
+    });
+  };
+  function stopScan(){
+    show('btnStop',false); el('btnScan').classList.remove('hide');
+    if(scanner){ scanner.stop().then(function(){scanner.clear();show('reader',false);}).catch(function(){show('reader',false);}); scanner=null; }
+    else show('reader',false);
+  }
+  el('btnStop').onclick=stopScan;
+  el('btnFind').onclick=function(){ lookup((el('manualId').value||'').trim().toUpperCase()); };
+  el('manualId').addEventListener('keydown',function(e){ if(e.key==='Enter') el('btnFind').click(); });
+  el('btnOther').onclick=reset;
+  el('btnAgain').onclick=reset;
+  function reset(){ D=null; show('step2',false); show('step3',false); show('step1',true); show('bar',false);
+    el('manualId').value=''; el('sections').innerHTML=''; el('notes').value=''; window.scrollTo(0,0); }
+
+  /* ---------- lookup ---------- */
+  function lookup(assetId, tpl){
+    if(!assetId){ toast('Nothing scanned. Try again or type the number.','bad'); return; }
+    api('asset_check_lookup',{asset:assetId, template:tpl||''},
+      function(m){
+        if(m.status!=='success'){ toast(m.message||'Asset not found','bad'); return; }
+        D=m; renderAsset(); renderSections(); loadTractor();
+        show('step1',false); show('step2',true); show('bar', !!(m.sections||[]).length);
+        window.scrollTo(0,0);
+      },
+      function(){ toast('Could not reach the server.','bad'); });
   }
 
-  $("btn-submit").disabled = true;
-  $("btn-submit").innerHTML = '<span class="spinner"></span>Submitting…';
+  function renderAsset(){
+    var a=D.asset;
+    el('aQr').src=D.qr_url; el('aId').textContent=a.name;
+    el('aName').textContent=a.asset_name||'(no name)';
+    el('aLoc').textContent=a.location||'no location';
+    var rows=[['Category',a.asset_category],['Company',a.company]];
+    if(D.custodian_name) rows.push(['Custodian',D.custodian_name]);
+    if(D.maintenance_team) rows.push(['Team',D.maintenance_team]);
+    if(D.frequency) rows.push(['Frequency',D.frequency]);
+    if(D.last_check) rows.push(['Last check',D.last_check.check_date+' — '+D.last_check.overall_status]);
+    else rows.push(['Last check','none recorded']);
+    el('aMeta').innerHTML=rows.map(function(p){
+      return '<dt>'+esc(p[0])+'</dt><dd>'+esc(p[1]||'')+'</dd>';}).join('');
+    var sel=el('tplSel'); sel.innerHTML='';
+    (D.templates||[]).forEach(function(t){
+      var o=document.createElement('option'); o.value=t.name;
+      o.textContent=t.name+(t.is_default?'  (default)':''); sel.appendChild(o);
+    });
+    if(D.template) sel.value=D.template;
+    sel.onchange=function(){ lookup(D.asset.name, sel.value); };
+    if(!(D.templates||[]).length){
+      sel.innerHTML='<option>No check sheet exists for '+esc(a.asset_category)+'</option>';
+      sel.disabled=true;
+      el('noTpl').innerHTML='There is no check sheet template for <b>'+esc(a.asset_category)+
+        '</b>, so this asset cannot be checked yet. Someone needs to create one in '+
+        '<i>Asset Check Sheet Template</i> first.';
+      show('noTpl',true);
+    } else { sel.disabled=false; show('noTpl',false); }
+    el('chkDate').value=today();
+  }
 
-  const payload = {
-    asset:            S.asset,
-    check_date:       S.check_date,
-    template:         S.template,
-    company:          S.company,
-    additional_notes: $("inp-notes").value,
-    sections:         S.sections,
+  /* ---------- tractor / machine day plan ---------- */
+  var MACHINE={'Tractors':1,'Gyromowers':1,'Trailers':1};
+  var TD=null, MODE='inspect';
+  function isMachine(){ return !!(D && MACHINE[D.asset.asset_category]); }
+  function loadTractor(){
+    if(!isMachine()){
+      show('chooser',false); show('tractorPanel',false); show('planBadge',false);
+      show('taskForm',false); show('sections',true); return;
+    }
+    show('chooser',true);
+    api('tractor_day_lookup',{tractor:D.asset.name,date:el('chkDate').value||today()},
+      function(m){ if(m.status!=='success') return; TD=m; paintMode(); },
+      function(){});
+  }
+  function meterLabel(){ return 'Odometer/machine hours reading'; }
+  function openJobs(){ return (TD&&TD.tasks||[]).filter(function(t){
+      return t.status==='Planned'||t.status==='In Progress'; }); }
+
+  function paintMode(){
+    var task=(MODE==='task');
+    el('modeInspect').setAttribute('data-on',task?'0':'1');
+    el('modeTask').setAttribute('data-on',task?'1':'0');
+    show('taskForm',false);
+    show('sections',!task);
+    show('bar',!task && !!((D&&D.sections||[]).length));
+    var nb=el('notesCard'); if(nb) show('notesCard',!task);
+    if(task){ show('planBadge',false); renderTractor(); show('tractorPanel',true); }
+    else { show('tractorPanel',false); renderBadge(); }
+  }
+  function renderBadge(){
+    var b=el('planBadge');
+    if(!isMachine() || !TD){ show('planBadge',false); return; }
+    var open=openJobs(), all=(TD.tasks||[]).length;
+    if(!all){ b.innerHTML='<span>No work planned for this machine today.</span>'+
+        '<button id="goPlan">Plan a task</button>'; }
+    else if(open.length){ b.innerHTML='<span><b>'+open.length+'</b> job'+(open.length>1?'s':'')+
+        ' pending today &mdash; '+esc(open[0].task_subject||open[0].work_description||'')+
+        (open.length>1?' and others':'')+'</span><button id="goPlan">Open tasks</button>'; }
+    else { b.innerHTML='<span>All '+all+' job'+(all>1?'s':'')+' for today are done.</span>'+
+        '<button id="goPlan">View tasks</button>'; }
+    show('planBadge',true);
+    var g=el('goPlan'); if(g) g.onclick=function(){ MODE='task'; paintMode();
+      el('tractorPanel').scrollIntoView({behavior:'smooth',block:'start'}); };
+  }
+
+  function jobHtml(t,i){
+    var st=(t.status||'Planned').replace(/\s/g,'');
+    var blocks=(t.blocks||[]).map(function(b){ return esc(b.block); }).join(', ');
+    var running=(t.status==='In Progress');
+    var done=(t.status==='Completed');
+    var h='<div class="job" id="job-'+i+'">'+
+      '<div class="jt">'+esc(t.task_subject||t.work_description||'Job '+(i+1))+
+        '<span class="pill '+st+'">'+esc(t.status||'Planned')+'</span></div>'+
+      '<div class="js">'+esc(t.name)+
+        (blocks?' &middot; '+blocks:'')+
+        (t.operator_name?' &middot; '+esc(t.operator_name):'')+
+        (t.planned_hours?' &middot; planned '+t.planned_hours+' h':'')+
+        (t.planned_qty?' &middot; '+t.planned_qty+' '+esc(t.uom||''):'')+'</div>';
+    if(done){
+      h+='<div class="js" style="margin-top:6px">Reading '+t.hour_meter_start+
+         ' &rarr; '+t.hour_meter_end+' &middot; <b>'+(t.actual_hours||0)+' h</b>'+
+         (t.actual_qty?' &middot; '+t.actual_qty+' '+esc(t.uom||''):'')+
+         (t.fuel_litres?' &middot; '+t.fuel_litres+' L':'')+'</div>';
+    } else if(running){
+      h+='<div class="jgrid">'+
+        '<div class="full"><label class="lbl">'+meterLabel()+' *</label>'+
+          '<input type="number" step="0.1" id="rd-'+i+'" placeholder="started at '+t.hour_meter_start+'"></div>'+
+        '<div><label class="lbl">Done ('+esc(t.uom||'qty')+')</label>'+
+          '<input type="number" step="0.1" id="aq-'+i+'" value="'+(t.actual_qty||'')+'"></div>'+
+        '<div><label class="lbl">Fuel (L)</label>'+
+          '<input type="number" step="0.1" id="fl-'+i+'" value="'+(t.fuel_litres||'')+'"></div>'+
+        (t.blocks&&t.blocks.length? '<div class="full">'+t.blocks.map(function(b,bi){
+            return '<label class="lbl">'+esc(b.block)+' done</label>'+
+                   '<input type="number" step="0.1" id="bq-'+i+'-'+bi+'" value="'+(b.actual_qty||'')+'">';}).join('')+'</div>':'')+
+        '<div class="full"><button class="btn btn-stop bigbtn btn-block" data-stop="'+i+'">Stop &amp; finish</button></div>'+
+      '</div>';
+    } else {
+      h+='<div class="jgrid">'+
+        '<div class="full"><label class="lbl">'+meterLabel()+' *</label>'+
+          '<input type="number" step="0.1" id="rd-'+i+'" placeholder="last was '+(TD.last_hour_meter||0)+'"></div>'+
+        '<div class="full"><button class="btn btn-go bigbtn btn-block" data-start="'+i+'">Start work</button></div>'+
+      '</div>';
+    }
+    return h+'</div>';
+  }
+  function renderTractor(){
+    var t=(TD&&TD.tasks)||[], h='';
+    h+='<h3>Today&rsquo;s work &mdash; '+esc(TD.date)+(TD.__cached?' (offline copy)':'')+'</h3>';
+    h+='<div class="hm">Last reading <b>'+(TD.last_hour_meter||0)+'</b>'+
+       (TD.last_hour_meter_date?' ('+esc(TD.last_hour_meter_date)+')':'')+
+       ' &middot; last 7 days <b>'+TD.week_hours+' h</b>, <b>'+TD.week_fuel+' L</b></div>';
+    h+= t.length ? t.map(jobHtml).join('') : '<div class="none">Nothing planned for this machine today.</div>';
+    h+='<button class="add" id="addJob">+ Plan another task</button>';
+    el('tractorPanel').innerHTML='<div class="tp">'+h+'</div>';
+    el('tractorPanel').querySelectorAll('[data-start]').forEach(function(b){
+      b.onclick=function(){ startStop('start',parseInt(b.getAttribute('data-start'),10),b); }; });
+    el('tractorPanel').querySelectorAll('[data-stop]').forEach(function(b){
+      b.onclick=function(){ startStop('stop',parseInt(b.getAttribute('data-stop'),10),b); }; });
+    el('addJob').onclick=function(){ show('taskForm',true); initTaskForm();
+      el('taskForm').scrollIntoView({behavior:'smooth',block:'start'}); };
+  }
+  function startStop(action,i,btn){
+    var t=TD.tasks[i];
+    var rv=(el('rd-'+i)||{}).value;
+    if(rv===''||rv==null){ toast('Odometer/machine hours reading is required to '+action+'.','bad');
+      (el('rd-'+i)||{}).focus&&el('rd-'+i).focus(); return; }
+    var p={name:t.name, action:action, reading:parseFloat(rv)};
+    if(action==='stop'){
+      var aq=(el('aq-'+i)||{}).value, fl=(el('fl-'+i)||{}).value;
+      if(aq!=='') p.actual_qty=parseFloat(aq);
+      if(fl!=='') p.fuel_litres=parseFloat(fl);
+      if(t.blocks&&t.blocks.length){
+        p.blocks=t.blocks.map(function(b,bi){
+          var v=(el('bq-'+i+'-'+bi)||{}).value;
+          return {block:b.block, planned_qty:b.planned_qty||0,
+                  actual_qty:(v===''?(b.actual_qty||0):parseFloat(v))}; });
+      }
+    }
+    btn.disabled=true; btn.textContent=(action==='start'?'Starting…':'Stopping…');
+    api('tractor_day_save',{data:JSON.stringify(p)},function(m){
+      btn.disabled=false;
+      if(m.status!=='success'){ toast(m.message||'Could not save','bad');
+        btn.textContent=(action==='start'?'Start work':'Stop & finish'); return; }
+      if(m.offline){
+        t.status=(action==='start'?'In Progress':'Completed');
+        if(action==='start') t.hour_meter_start=p.reading;
+        else { t.hour_meter_end=p.reading;
+               t.actual_hours=Math.round((p.reading-(t.hour_meter_start||0))*100)/100; }
+        toast('Saved on this phone, will sync','good'); renderTractor(); return;
+      }
+      toast(m.message+(m.actual_hours?' · '+m.actual_hours+' h':''),'good');
+      loadTractor();
+    },function(){ btn.disabled=false;
+      btn.textContent=(action==='start'?'Start work':'Stop & finish');
+      toast('Could not reach the server.','bad'); });
+  }
+  function addJob(){ el('modeTask').click(); }
+
+  /* ---------- type-ahead bound to a server list ---------- */
+  function autocomplete(inputId, kind, onPick, extra){
+    var inp=el(inputId); if(!inp) return;
+    inp.dataset.value='';
+    var box=null, timer=null;
+    function close(){ if(box){ box.remove(); box=null; } }
+    function open(items){
+      close();
+      box=document.createElement('div'); box.className='ac-list';
+      if(!items.length){ box.innerHTML='<div class="ac-empty">Nothing matches</div>'; }
+      items.forEach(function(o){
+        var d=document.createElement('div');
+        d.innerHTML=esc(o.label)+(o.hint?'<span class="h">'+esc(o.hint)+'</span>':'');
+        d.onmousedown=function(e){ e.preventDefault();
+          inp.value=o.label; inp.dataset.value=o.value; close(); onPick&&onPick(o); };
+        box.appendChild(d);
+      });
+      inp.parentNode.appendChild(box);
+    }
+    function fetchList(){
+      var args={kind:kind,q:inp.value||''};
+      if(extra) Object.keys(extra).forEach(function(k){args[k]=extra[k];});
+      api('tractor_task_options',args,function(m){
+        if(m.status!=='success'){ close(); return; }
+        open(m.options||[]);
+      },function(){ close(); });
+    }
+    inp.addEventListener('input',function(){
+      inp.dataset.value='';
+      clearTimeout(timer); timer=setTimeout(fetchList,220);
+    });
+    inp.addEventListener('focus',fetchList);
+    inp.addEventListener('blur',function(){ setTimeout(close,150); });
+  }
+
+  /* ---------- inspect / add-task mode ---------- */
+  function setMode(m){ MODE=m; paintMode(); }
+  var pickedBlocks=[];
+  function paintChips(){
+    el('tfBlockChips').innerHTML=pickedBlocks.map(function(b,i){
+      return '<span class="chip">'+esc(b)+'<b data-rm="'+i+'">&times;</b></span>';}).join('');
+    el('tfBlockChips').querySelectorAll('[data-rm]').forEach(function(x){
+      x.onclick=function(){ pickedBlocks.splice(parseInt(x.getAttribute('data-rm'),10),1); paintChips(); }; });
+  }
+  function initTaskForm(){
+    ['tfTask','tfBlock','tfOperator','tfImplement','tfUom'].forEach(function(id){
+      var i=el(id); if(i){ i.value=''; i.dataset.value=''; } });
+    ['tfHours','tfQty','tfNotes'].forEach(function(id){ var i=el(id); if(i) i.value=''; });
+    pickedBlocks=[]; paintChips();
+    autocomplete('tfTask','task');
+    autocomplete('tfBlock','block',function(o){
+      if(pickedBlocks.indexOf(o.value)<0) pickedBlocks.push(o.value);
+      el('tfBlock').value=''; el('tfBlock').dataset.value=''; paintChips(); });
+    autocomplete('tfOperator','operator');
+    autocomplete('tfImplement','implement');
+    autocomplete('tfUom','uom');
+  }
+  el('modeInspect').onclick=function(){ setMode('inspect'); };
+  el('modeTask').onclick=function(){ setMode('task');
+    el('tractorPanel').scrollIntoView({behavior:'smooth',block:'start'}); };
+  el('tfCancel').onclick=function(){ show('taskForm',false); };
+  el('tfSave').onclick=function(){
+    if(!D) return;
+    var taskId=el('tfTask').dataset.value||'';
+    var label=el('tfTask').value||'';
+    if(!taskId && !label){ toast('Pick a task from the list, or type what is to be done.','bad'); return; }
+    var p={tractor:D.asset.name, work_date:el('chkDate').value||today(), status:'Planned',
+           task:taskId||null, work_description:(taskId?'':label),
+           blocks:pickedBlocks.map(function(b){return {block:b};}),
+           operator:el('tfOperator').dataset.value||null,
+           implement:el('tfImplement').dataset.value||null,
+           uom:el('tfUom').dataset.value||null,
+           planned_hours:parseFloat(el('tfHours').value||0)||null,
+           planned_qty:parseFloat(el('tfQty').value||0)||null,
+           notes:el('tfNotes').value||''};
+    var b=el('tfSave'); b.disabled=true; b.textContent='Adding…';
+    api('tractor_day_save',{data:JSON.stringify(p)},function(m){
+      b.disabled=false; b.textContent='Add task';
+      if(m.status!=='success'){ toast(m.message||'Could not add','bad'); return; }
+      toast(m.message||'Task added','good'); initTaskForm(); show('taskForm',false);
+      loadTractor();
+      el('tractorPanel').scrollIntoView({behavior:'smooth',block:'start'});
+    },function(){ b.disabled=false; b.textContent='Add task'; toast('Could not reach the server.','bad'); });
   };
 
-  api("upande_asset.upande_asset.doctype.asset_check_sheet.asset_check_sheet.create_check_sheet_from_mobile",
-      { payload: JSON.stringify(payload) })
-    .then(res => {
-      if (res && res.name) {
-        const submitted = res.submitted !== false;
-        $("success-sub").textContent  = submitted
-          ? `${res.name} has been submitted successfully.`
-          : `${res.name} saved as draft — ${res.error || "review required"}.`;
-        $("success-link").href = `/app/asset-check-sheet/${res.name}`;
-        $("success-link").textContent = `Open ${res.name} in desk →`;
-        showScreen("screen-success");
-        setProgress(1);
-        $("btn-back").style.display = "none";
-      } else {
-        toast("Unexpected response — please try again");
-        $("btn-submit").disabled = false;
-        $("btn-submit").textContent = "Submit Check Sheet";
-      }
-    })
-    .catch(err => {
-      toast("Submission failed — check your connection");
-      $("btn-submit").disabled = false;
-      $("btn-submit").textContent = "Submit Check Sheet";
+  function renderSections(){
+    var host=el('sections'); host.innerHTML='';
+    (D.sections||[]).forEach(function(sec){
+      var h=document.createElement('div'); h.className='sec-h';
+      h.innerHTML='<span>'+esc(sec.label)+'</span><span>'+sec.items.length+' checks</span>';
+      host.appendChild(h);
+      sec.items.forEach(function(it,i){
+        var id=sec.key+'-'+i;
+        var d=document.createElement('div'); d.className='item'; d.id='it-'+id;
+        d.innerHTML=
+          '<div class="f">'+esc(it.check_factor)+'</div>'+
+          (it.notes?'<div class="n">'+esc(it.notes)+'</div>':'')+
+          '<div class="segs">'+STATUSES.map(function(s){
+              return '<div class="seg" data-v="'+esc(s)+'" data-on="0" data-for="'+id+'">'+SHORT[s]+'</div>';
+            }).join('')+'</div>'+
+          '<div class="detail hide" id="dt-'+id+'">'+
+            '<div class="row2">'+
+              '<div><label class="lbl">Severity</label><select id="sv-'+id+'">'+
+                '<option value=""></option>'+SEVERITIES.map(function(s){
+                  return '<option value="'+s+'">'+s+'</option>';}).join('')+'</select></div>'+
+              '<div><label class="lbl">Extent %'+(D.require_incident_percent?' *':'')+'</label>'+
+                '<input type="number" min="0" max="100" step="1" id="pc-'+id+'"></div>'+
+            '</div>'+
+            '<div><label class="lbl">What is wrong</label>'+
+              '<textarea id="fd-'+id+'" placeholder="Describe the fault"></textarea></div>'+
+            '<div><label class="lbl">Proposed action'+(D.require_proposed_action?' *':'')+'</label>'+
+              '<textarea id="pa-'+id+'" placeholder="What should be done"></textarea></div>'+
+          '</div>';
+        host.appendChild(d);
+      });
     });
-}
-
-// ── Bottom sheet ───────────────────────────────────────────────────────
-function openSheet(sec, idx) {
-  const item = S.sections[sec][idx];
-  S.fault_key = `${sec}:${idx}`;
-
-  $("sheet-item-name").textContent = item.check_factor;
-  $("sheet-desc").value    = item.fault_description || "";
-  $("sheet-action").value  = item.proposed_action   || "";
-  $("sheet-incident").value = item.incident_percent != null ? item.incident_percent : "";
-  $("field-incident").style.display = S.require_incident ? "" : "none";
-
-  document.querySelectorAll(".sev-btn").forEach(b => {
-    b.classList.toggle("active", b.dataset.sev === item.severity);
-  });
-
-  $("bottom-sheet").classList.add("open");
-  $("sheet-backdrop").classList.add("open");
-  setTimeout(() => $("sheet-desc").focus(), 350);
-}
-
-function closeSheet() {
-  $("bottom-sheet").classList.remove("open");
-  $("sheet-backdrop").classList.remove("open");
-  S.fault_key = null;
-}
-
-function bindSheet() {
-  document.querySelectorAll(".sev-btn").forEach(b => {
-    b.addEventListener("click", function () {
-      document.querySelectorAll(".sev-btn").forEach(x => x.classList.remove("active"));
-      this.classList.add("active");
+    host.querySelectorAll('.seg').forEach(function(b){
+      b.onclick=function(){
+        var f=b.getAttribute('data-for'), v=b.getAttribute('data-v');
+        b.parentNode.querySelectorAll('.seg').forEach(function(x){x.setAttribute('data-on','0');});
+        b.setAttribute('data-on','1');
+        var needs=(v==='Fault / Defect'||v==='Affected'||v==='Needs Monitoring');
+        el('dt-'+f).classList[needs?'remove':'add']('hide');
+        el('it-'+f).classList[(v==='Fault / Defect'||v==='Affected')?'add':'remove']('flag');
+        count();
+      };
     });
-  });
+    count();
+  }
 
-  $("btn-sheet-cancel").addEventListener("click", () => {
-    const [sec, idx] = (S.fault_key || ":").split(":");
-    if (sec && !S.sections[sec]?.[+idx]?.fault_description) {
-      // User cancelled without saving — revert status to OK
-      S.sections[sec][+idx].status = "OK";
+  function count(){
+    var tot=document.querySelectorAll('#sections .item').length;
+    var done=0, faults=0;
+    document.querySelectorAll('#sections .item').forEach(function(it){
+      var on=it.querySelector('.seg[data-on="1"]');
+      if(on){ done++; var v=on.getAttribute('data-v');
+        if(v==='Fault / Defect'||v==='Affected') faults++; }
+    });
+    el('cnt').innerHTML=done+' of '+tot+' recorded'+(faults?' &middot; <b style="color:#dc2626">'+faults+' fault'+(faults>1?'s':'')+'</b>':'');
+    el('btnSubmit').disabled=(tot===0);
+  }
+
+  /* ---------- submit ---------- */
+  el('btnSubmit').onclick=function(){
+    if(busy||!D) return;
+    var payload={asset:D.asset.name, template:el('tplSel').value,
+                 check_date:el('chkDate').value||today(),
+                 notes:el('notes').value||'', sections:{}, submit:1};
+    var missing=[], missField=null;
+    (D.sections||[]).forEach(function(sec){
+      var rows=[];
+      sec.items.forEach(function(it,i){
+        var id=sec.key+'-'+i;
+        var on=document.querySelector('.seg[data-for="'+id+'"][data-on="1"]');
+        if(!on){ missing.push(it.check_factor); if(!missField) missField='it-'+id; return; }
+        var v=on.getAttribute('data-v');
+        var r={check_factor:it.check_factor, threshold_percent:it.threshold_percent||0, status:v};
+        if(v==='Fault / Defect'||v==='Affected'||v==='Needs Monitoring'){
+          r.severity=(el('sv-'+id)||{}).value||'';
+          r.fault_description=(el('fd-'+id)||{}).value||'';
+          r.incident_percent=parseFloat((el('pc-'+id)||{}).value||0)||0;
+          r.proposed_action=(el('pa-'+id)||{}).value||'';
+          if(v!=='Needs Monitoring'){
+            if(D.require_incident_percent && !r.incident_percent){
+              missing.push(it.check_factor+' — extent %'); if(!missField) missField='it-'+id; }
+            if(D.require_proposed_action && !r.proposed_action){
+              missing.push(it.check_factor+' — proposed action'); if(!missField) missField='it-'+id; }
+          }
+        }
+        rows.push(r);
+      });
+      if(rows.length) payload.sections[sec.key]=rows;
+    });
+    if(missing.length){
+      toast('Still to fill in: '+missing.slice(0,3).join(', ')+(missing.length>3?' and '+(missing.length-3)+' more':''),'bad');
+      if(missField) el(missField).scrollIntoView({behavior:'smooth',block:'center'});
+      return;
     }
-    closeSheet();
-    if (sec) renderItems(sec);
-  });
+    busy=true; el('btnSubmit').textContent='Saving…';
+    api('asset_check_submit',{data:JSON.stringify(payload)},
+      function(m){
+        busy=false; el('btnSubmit').textContent='Submit';
+        if(m.status!=='success'){ toast(m.message||'Could not save','bad'); return; }
+        el('dTitle').textContent=m.name;
+        el('dSub').innerHTML='Overall: <b>'+esc(m.overall_status)+'</b><br>'+
+          m.items+' checks recorded'+(m.faults?', '+m.faults+' fault'+(m.faults>1?'s':''):'')+
+          '<br>'+esc(D.asset.asset_name||'')+' &middot; '+esc(D.asset.location||'');
+        show('step2',false); show('bar',false); show('step3',true); window.scrollTo(0,0);
+      },
+      function(){ busy=false; el('btnSubmit').textContent='Submit';
+        toast('Could not reach the server.','bad'); });
+  };
 
-  $("sheet-backdrop").addEventListener("click", () => $("btn-sheet-cancel").click());
-
-  $("btn-sheet-done").addEventListener("click", () => {
-    const activeSev = document.querySelector(".sev-btn.active");
-    if (!activeSev) { toast("Please select a severity level"); return; }
-    const desc = $("sheet-desc").value.trim();
-    if (!desc) { toast("Please describe the fault"); return; }
-    if (S.require_incident && !$("sheet-incident").value) {
-      toast("Incident % is required for this template"); return;
-    }
-
-    const [sec, idx] = S.fault_key.split(":");
-    const item = S.sections[sec][+idx];
-    item.severity          = activeSev.dataset.sev;
-    item.fault_description = desc;
-    item.proposed_action   = $("sheet-action").value.trim();
-    item.incident_percent  = $("sheet-incident").value ? parseFloat($("sheet-incident").value) : null;
-
-    closeSheet();
-    renderItems(sec);
-  });
+  el('chkDate').value=today();
+  /* deep link: /asset-check?asset=ASS-GH-00001 */
+  paintNet(); flushQueue(paintNet);
+  var q=new URLSearchParams(location.search).get('asset');
+  if(q) lookup(q.toUpperCase());
 }
-
-// ── Utils ──────────────────────────────────────────────────────────────
-function escHtml(str) {
-  return (str || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-}
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',acsInit);
+else acsInit();
 </script>
+
 {% endblock %}

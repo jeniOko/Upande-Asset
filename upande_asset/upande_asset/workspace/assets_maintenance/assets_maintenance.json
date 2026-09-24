@@ -1,0 +1,35 @@
+{
+ "app": "upande_asset",
+ "charts": [],
+ "content": "[{\"id\": \"amnav\", \"type\": \"custom_block\", \"data\": {\"custom_block_name\": \"Asset Maintenance Navigation\", \"col\": 12}}]",
+ "creation": "2026-09-25 01:21:21.120778",
+ "custom_blocks": [
+  {
+   "custom_block_name": "Asset Maintenance Navigation",
+   "label": "Asset Maintenance Navigation"
+  }
+ ],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "hide_custom": 0,
+ "icon": "tool",
+ "idx": 0,
+ "indicator_color": "green",
+ "is_hidden": 0,
+ "label": "Assets Maintenance",
+ "link_type": "DocType",
+ "links": [],
+ "modified": "2026-09-25 01:33:58.950628",
+ "modified_by": "Administrator",
+ "module": "Upande Asset",
+ "name": "Assets Maintenance",
+ "number_cards": [],
+ "owner": "Administrator",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [],
+ "sequence_id": 13.1,
+ "shortcuts": [],
+ "title": "Assets Maintenance",
+ "type": "Workspace"
+}
