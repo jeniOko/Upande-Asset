@@ -281,6 +281,12 @@ after_migrate = "upande_asset.upande_asset.install.after_migrate"
 # (auto-synced on migrate); Client Scripts are exported here as fixtures.
 fixtures = [
 	{"dt": "Client Script", "filters": [["name", "in", ["Reason for scrapping"]]]},
+	# The workspaces in ./upande_asset/workspace/ render these; without them the
+	# pages come up empty on a site that has never had them.
+	{
+		"dt": "Custom HTML Block",
+		"filters": [["name", "in", ["Asset Maintenance Navigation", "Asset Maintenance Dashboard"]]],
+	},
 ]
 
 # -- Doc Events --------------------------------------------------

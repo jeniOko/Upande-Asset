@@ -1,0 +1,42 @@
+{
+ "app": "upande_asset",
+ "charts": [],
+ "content": "[{\"id\":\"d8K5E3Qr8z\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Welcome to the Asset Maintanance workspace</span>\",\"col\":12}},{\"id\":\"o1LkLhM9yt\",\"type\":\"paragraph\",\"data\":{\"text\":\"Click on \\n\\t\\t\\t\\n\\t\\t\\t\\n\\t\\t to edit\",\"col\":12}},{\"id\":\"3suzQd1k99\",\"type\":\"custom_block\",\"data\":{\"custom_block_name\":\"Asset Maintenance Navigation\",\"col\":12}},{\"id\":\"fasSKw5lE5\",\"type\":\"custom_block\",\"data\":{\"custom_block_name\":\"Asset Maintenance Dashboard\",\"col\":12}}]",
+ "custom_blocks": [
+  {
+   "custom_block_name": "Asset Maintenance Navigation",
+   "docstatus": 0,
+   "doctype": "Workspace Custom Block",
+   "idx": 1,
+   "label": "Asset Maintenance Navigation",
+   "parentfield": "custom_blocks",
+   "parenttype": "Workspace"
+  },
+  {
+   "custom_block_name": "Asset Maintenance Dashboard",
+   "docstatus": 0,
+   "doctype": "Workspace Custom Block",
+   "idx": 2,
+   "label": "Asset Maintenance Dashboard",
+   "parentfield": "custom_blocks",
+   "parenttype": "Workspace"
+  }
+ ],
+ "doctype": "Workspace",
+ "hide_custom": 0,
+ "indicator_color": "green",
+ "is_hidden": 0,
+ "label": "Asset Maintanance",
+ "link_type": "DocType",
+ "links": [],
+ "module": "Upande Asset",
+ "name": "Asset Maintanance",
+ "number_cards": [],
+ "public": 1,
+ "quick_lists": [],
+ "roles": [],
+ "sequence_id": 0.0,
+ "shortcuts": [],
+ "title": "Asset Maintanance",
+ "type": "Workspace"
+}
