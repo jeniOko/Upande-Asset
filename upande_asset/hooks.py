@@ -11,6 +11,14 @@ app_license = "mit"
 # required_apps = []
 
 # Each item in the list will be shown as an app in the apps page
+add_to_apps_screen = [
+	{
+		"name": "upande_asset",
+		"title": "Assets Maintenance",
+		"route": "/app/assets-maintenance",
+	}
+]
+
 # add_to_apps_screen = [
 # 	{
 # 		"name": "upande_asset",
@@ -43,6 +51,10 @@ app_include_css = "/assets/upande_asset/css/upande_asset.css"
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
+doctype_js = {
+	"Asset Repair": "public/js/asset_repair.js",
+	"Material Request": "public/js/material_request.js",
+}
 # doctype_js = {"doctype" : "public/js/doctype.js"}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
@@ -269,6 +281,12 @@ after_migrate = "upande_asset.upande_asset.install.after_migrate"
 # (auto-synced on migrate); Client Scripts are exported here as fixtures.
 fixtures = [
 	{"dt": "Client Script", "filters": [["name", "in", ["Reason for scrapping"]]]},
+	# The workspaces in ./upande_asset/workspace/ render these; without them the
+	# pages come up empty on a site that has never had them.
+	{
+		"dt": "Custom HTML Block",
+		"filters": [["name", "in", ["Asset Maintenance Navigation", "Asset Maintenance Dashboard"]]],
+	},
 ]
 
 # -- Doc Events --------------------------------------------------
@@ -277,12 +295,20 @@ fixtures = [
 # After adding these and deploying, disable those Server Scripts
 # in ERPNext > Server Script list.
 
+override_doctype_class = {
+	"Asset Repair": "upande_asset.overrides.asset_repair.CustomAssetRepair",
+}
+
 doc_events = {
 	"Asset Repair": {
 		"on_update": ["upande_asset.upande_asset.doctype.asset_repair_hooks.on_asset_repair_save"],
 	},
 	"Asset Maintenance": {
 		"on_update": ["upande_asset.upande_asset.doctype.asset_repair_hooks.on_asset_maintenance_save"],
+	},
+	"Stock Entry": {
+		"before_validate": "upande_asset.overrides.asset_repair.stamp_material_request",
+		"on_submit": "upande_asset.overrides.asset_repair.record_issue_on_repair",
 	},
 }
 
