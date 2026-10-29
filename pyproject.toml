@@ -1,7 +1,7 @@
 [project]
 name = "upande_asset"
 authors = [
-    { name = "dev@upande.com,wycliffe@upande.com", email = "dev@upande.com"}
+    { name = "jeniffer@upande.com,dev@upande.com,wycliffe@upande.com", email = "dev@upande.com"}
 ]
 description = "Customizations for the asset module"
 requires-python = ">=3.14"
@@ -14,6 +14,11 @@ dependencies = [
 [build-system]
 requires = ["flit_core >=3.4,<4"]
 build-backend = "flit_core.buildapi"
+
+# Frappe version this app is compatible with.
+# Required by Frappe Cloud to resolve a compatible bench for deployment.
+[tool.bench.frappe-dependencies]
+frappe = ">=16.0.0,<17.0.0"
 
 # These dependencies are only installed when developer mode is enabled
 [tool.bench.dev-dependencies]
