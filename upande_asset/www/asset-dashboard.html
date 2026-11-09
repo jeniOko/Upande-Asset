@@ -1,0 +1,77 @@
+{% extends "templates/web.html" %}
+{% block title %}Asset Dashboard{% endblock %}
+
+{% block head_include %}
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/upande_asset/css/asset_dashboard.css?v={{ asset_version }}">
+{% endblock %}
+
+{% block page_content %}
+<div id="uad" data-company="{{ default_company }}" data-user="{{ full_name }}" data-uid="{{ user_id }}" data-initials="{{ initials }}">
+	<div class="ua-shell" data-el="shell">
+		<aside class="ua-side">
+			<div class="ua-brand">
+				<a class="ua-brand__mark" href="/app/assets" title="Back to desk">AS</a>
+				<a class="ua-brand__txt" href="/app/assets" title="Back to desk">
+					<div class="ua-brand__t">Assets</div>
+					<div class="ua-brand__s">Dashboard</div>
+				</a>
+			</div>
+			<div class="ua-co"><label>Company</label><select data-el="company"></select></div>
+			<div class="ua-navsec">Views</div>
+			<nav data-el="nav"></nav>
+			<div class="ua-navsec">Open in desk</div>
+			<a class="ua-nav sub" href="/app/asset">Assets</a>
+			<a class="ua-nav sub" href="/app/asset-service-record">Service Records</a>
+			<a class="ua-nav sub" href="/app/asset-check-sheet">Check Sheets</a>
+			<a class="ua-nav sub" href="/app/insurance-policy">Insurance Policies</a>
+			<a class="ua-nav sub" href="/app/insurance-claim">Insurance Claims</a>
+			<button class="ua-collapse" data-act="toggle-side" title="Collapse sidebar">
+				<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/><path class="ua-collapse__chev" d="M15.5 9.5L13 12l2.5 2.5"/></svg>
+				<span class="ua-collapse__lbl">Collapse</span>
+			</button>
+			<div class="ua-sidefoot">
+				<div class="ua-avatar">{{ initials }}</div>
+				<div class="ua-sidefoot__txt"><div class="ua-sidefoot__n">{{ full_name }}</div><div class="ua-sidefoot__l"><a href="/app/assets">Back to desk →</a></div></div>
+			</div>
+		</aside>
+		<main class="ua-main">
+			<header class="ua-head">
+				<div>
+					<div class="ua-eyebrow" data-el="eyebrow">Assets</div>
+					<h1 class="ua-title" data-el="title">Overview</h1>
+					<p class="ua-sub" data-el="sub"></p>
+				</div>
+				<div class="ua-tools">
+					<button class="ua-icon ua-burger" data-act="menu" title="Menu"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+					<button class="ua-icon" data-act="refresh" title="Refresh"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>
+					<div class="ua-filter" data-el="dimfilter">
+						<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16l-6 8v5l-4 2v-7z"/></svg>
+						<select data-el="dimension" title="Accounting dimension"></select>
+						<select data-el="dimvalue" title="Dimension value"><option value="">All</option></select>
+					</div>
+					<div class="ua-filter" data-el="datefilter">
+						<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>
+						<select data-el="preset" title="Period">
+							<option value="week">This week</option><option value="month">This month</option><option value="last30">Last 30 days</option>
+							<option value="quarter">This quarter</option><option value="last90">Last 90 days</option><option value="ytd">This year</option>
+							<option value="last12">Last 12 months</option><option value="lastyear">Last year</option><option value="custom">Custom…</option>
+						</select>
+						<span class="ua-filter__range" data-el="range">
+							<input type="date" data-el="from" title="From"><span>–</span><input type="date" data-el="to" title="To">
+						</span>
+					</div>
+				</div>
+			</header>
+			<div data-el="body"><div class="ua-state"><div class="ua-loader"></div>Loading…</div></div>
+		</main>
+	</div>
+	<div class="ua-scrim" data-act="close"></div>
+	<aside class="ua-drawer" data-el="drawer"></aside>
+	<div class="ua-pop" data-el="pop" role="dialog" aria-modal="true"></div>
+	<div class="ua-tip" data-el="tip"></div>
+</div>
+<script src="/assets/upande_asset/js/asset_dashboard.js?v={{ asset_version }}"></script>
+{% endblock %}
