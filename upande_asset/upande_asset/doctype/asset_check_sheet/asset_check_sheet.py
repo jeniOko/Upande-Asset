@@ -6,6 +6,8 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
+from upande_asset.upande_asset.rca import copy_analysis, set_root_cause, sync_corrective_actions
+
 FAULT_STATUSES = {"Fault / Defect", "Affected"}
 SECTIONS = ["a", "b", "c", "d", "e", "f"]
 TERMINAL_STATUSES = {"Under Repair", "Repaired", "Maintained", "Cancelled"}
@@ -20,6 +22,16 @@ class AssetCheckSheet(Document):
         self._validate_fault_rows()
         self._calculate_thresholds()
         self._auto_set_status()
+        set_root_cause(self)
+
+    def before_update_after_submit(self):
+        set_root_cause(self)
+
+    def on_update(self):
+        sync_corrective_actions(self)
+
+    def on_update_after_submit(self):
+        sync_corrective_actions(self)
 
     def on_submit(self):
         self._enforce_proposed_actions_on_submit()
@@ -202,6 +214,8 @@ def make_asset_repair(check_sheet):
             "description": "\n\n".join(fault_lines),
         }
     )
+    # Carry the why-why analysis (not the actions – their ToDos stay with the sheet).
+    copy_analysis(cs, repair)
     return repair
 
 

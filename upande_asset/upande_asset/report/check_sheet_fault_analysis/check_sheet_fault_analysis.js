@@ -40,3 +40,5 @@ frappe.query_reports["Check Sheet Fault Analysis"] = {
 		return value;
 	},
 };
+
+upande_asset.reports.add_scope_filters("Check Sheet Fault Analysis");

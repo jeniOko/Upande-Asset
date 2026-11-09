@@ -29,3 +29,5 @@ frappe.query_reports["Check Sheet Compliance"] = {
 		return value;
 	},
 };
+
+upande_asset.reports.add_scope_filters("Check Sheet Compliance");

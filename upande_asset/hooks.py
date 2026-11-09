@@ -26,7 +26,12 @@ app_license = "mit"
 
 # include js, css files in header of desk.html
 app_include_css = "/assets/upande_asset/css/upande_asset.css"
-# app_include_js = "/assets/upande_asset/js/upande_asset.js"
+app_include_js = [
+	"/assets/upande_asset/js/insurance.js",
+	"/assets/upande_asset/js/why_why.js",
+	"/assets/upande_asset/js/materials.js",
+	"/assets/upande_asset/js/report_filters.js",
+]
 
 # include js, css files in header of web template
 # web_include_css = "/assets/upande_asset/css/upande_asset.css"
@@ -43,7 +48,10 @@ app_include_css = "/assets/upande_asset/css/upande_asset.css"
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-# doctype_js = {"doctype" : "public/js/doctype.js"}
+doctype_js = {
+	"Asset": "public/js/asset.js",
+	"Asset Repair": "public/js/asset_repair.js",
+}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -184,9 +192,10 @@ app_include_css = "/assets/upande_asset/css/upande_asset.css"
 # each overriding function accepts a `data` argument;
 # generated from the base implementation of the doctype dashboard,
 # along with any modifications made in other Frappe apps
-# override_doctype_dashboards = {
-# 	"Task": "upande_asset.task.get_dashboard_data"
-# }
+override_doctype_dashboards = {
+	"Asset": "upande_asset.upande_asset.insurance.asset.get_asset_dashboard_data",
+	"Asset Repair": "upande_asset.upande_asset.repair_materials.get_dashboard_data",
+}
 
 # exempt linked doctypes from being automatically cancelled
 #
@@ -272,14 +281,71 @@ after_migrate = "upande_asset.upande_asset.install.after_migrate"
 
 doc_events = {
     "Asset Repair": {
-        "on_update": [
-            "upande_asset.upande_asset.doctype.asset_repair_hooks.on_asset_repair_save"
+        "validate": [
+            "upande_asset.upande_asset.rca.asset_repair_validate",
+            "upande_asset.upande_asset.repair_materials.asset_repair_validate",
         ],
+        "before_submit": "upande_asset.upande_asset.repair_materials.asset_repair_before_submit",
+        "onload": "upande_asset.upande_asset.repair_materials.asset_repair_onload",
+        "on_update": [
+            "upande_asset.upande_asset.doctype.asset_repair_hooks.on_asset_repair_save",
+            "upande_asset.upande_asset.rca.on_update",
+        ],
+        "on_update_after_submit": "upande_asset.upande_asset.rca.on_update",
+    },
+    "Asset Maintenance Log": {
+        "validate": "upande_asset.upande_asset.maintenance.log_validate",
+        "after_insert": "upande_asset.upande_asset.maintenance.log_after_insert",
+        "on_update": "upande_asset.upande_asset.maintenance.log_on_update",
+    },
+    "ToDo": {
+        "on_update": "upande_asset.upande_asset.rca.todo_on_update",
     },
     "Asset Maintenance": {
         "on_update": [
             "upande_asset.upande_asset.doctype.asset_repair_hooks.on_asset_maintenance_save"
         ],
+    },
+    # -- Asset Insurance ---------------------------------------------
+    "Asset": {
+        "on_update_after_submit": "upande_asset.upande_asset.insurance.asset.asset_on_update_after_submit",
+    },
+    "Purchase Invoice": {
+        "validate": "upande_asset.upande_asset.insurance.premium.purchase_invoice_validate",
+        "on_submit": [
+            "upande_asset.upande_asset.insurance.premium.purchase_invoice_on_submit",
+            "upande_asset.upande_asset.doctype.asset_service_record.asset_service_record.purchase_invoice_on_submit",
+            "upande_asset.upande_asset.repair_materials.purchase_invoice_on_submit",
+        ],
+        "on_cancel": [
+            "upande_asset.upande_asset.insurance.premium.purchase_invoice_on_cancel",
+            "upande_asset.upande_asset.doctype.asset_service_record.asset_service_record.purchase_invoice_on_cancel",
+            "upande_asset.upande_asset.repair_materials.purchase_invoice_on_cancel",
+        ],
+    },
+    "Stock Entry": {
+        "validate": "upande_asset.upande_asset.repair_materials.stock_entry_validate",
+        "on_submit": ["upande_asset.upande_asset.doctype.asset_service_record.asset_service_record.stock_entry_on_change", "upande_asset.upande_asset.repair_materials.stock_entry_on_change"],
+        "on_cancel": ["upande_asset.upande_asset.doctype.asset_service_record.asset_service_record.stock_entry_released", "upande_asset.upande_asset.repair_materials.stock_entry_released"],
+        "on_trash": ["upande_asset.upande_asset.doctype.asset_service_record.asset_service_record.stock_entry_released", "upande_asset.upande_asset.repair_materials.stock_entry_released"],
+    },
+    "Material Request": {
+        "on_cancel": ["upande_asset.upande_asset.doctype.asset_service_record.asset_service_record.material_request_released", "upande_asset.upande_asset.repair_materials.material_request_released"],
+        "on_trash": ["upande_asset.upande_asset.doctype.asset_service_record.asset_service_record.material_request_released", "upande_asset.upande_asset.repair_materials.material_request_released"],
+    },
+    "Purchase Order": {
+        "on_submit": "upande_asset.upande_asset.insurance.premium.purchase_order_on_submit",
+    },
+    "Payment Entry": {
+        "on_submit": "upande_asset.upande_asset.insurance.events.payment_entry_on_change",
+        "on_cancel": "upande_asset.upande_asset.insurance.events.payment_entry_on_change",
+    },
+    "Journal Entry": {
+        # Scrapping books an "Asset Disposal" JE (status itself is set via db_set).
+        "on_submit": "upande_asset.upande_asset.insurance.asset.journal_entry_on_submit",
+    },
+    "Sales Invoice": {
+        "on_submit": "upande_asset.upande_asset.insurance.asset.sales_invoice_on_submit",
     },
 }
 
@@ -289,9 +355,20 @@ doc_events = {
 
 scheduler_events = {
     "daily": [
-        "upande_asset.upande_asset.scheduled_tasks.check_missed_asset_checks"
+        "upande_asset.upande_asset.scheduled_tasks.check_missed_asset_checks",
+        "upande_asset.upande_asset.insurance.tasks.daily",
     ],
 }
+
+# -- Fixtures (Asset Insurance) ----------------------------------
+# Core-doctype Custom Fields / Property Setters live in
+# upande_asset/upande_asset/custom/*.json (synced on every migrate) and carry
+# module = "Upande Asset". This export filter lets `bench export-fixtures`
+# capture any further customisations made in the UI for the module.
+fixtures = [
+    {"dt": "Custom Field", "filters": [["module", "=", "Upande Asset"]]},
+    {"dt": "Property Setter", "filters": [["module", "=", "Upande Asset"]]},
+]
 
 # ============================================================
 # NOTE ON CONTROLLER FILES

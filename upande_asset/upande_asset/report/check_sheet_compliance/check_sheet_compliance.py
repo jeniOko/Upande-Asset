@@ -2,6 +2,8 @@ import frappe
 from frappe import _
 from frappe.utils import add_days, getdate, today
 
+from upande_asset.upande_asset.report_utils import asset_condition
+
 FREQ_DAYS = {"Daily": 1, "Weekly": 7, "Monthly": 30, "Quarterly": 90, "Yearly": 365}
 
 
@@ -39,6 +41,9 @@ def _data(filters):
     if filters.get("check_status"):
         conditions.append("cs.check_status = %(check_status)s")
         params["check_status"] = filters["check_status"]
+
+    if scope := asset_condition(filters, "cs.asset", params):
+        conditions.append(scope)
 
     where = "WHERE " + " AND ".join(conditions)
 
