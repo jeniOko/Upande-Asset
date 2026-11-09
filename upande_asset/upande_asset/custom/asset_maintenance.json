@@ -1,0 +1,28 @@
+{
+ "custom_fields": [],
+ "custom_perms": [],
+ "doctype": "Asset Maintenance",
+ "links": [
+  {
+   "creation": "2026-11-05 11:00:00.000000",
+   "custom": 1,
+   "docstatus": 0,
+   "doctype": "DocType Link",
+   "group": "Service",
+   "hidden": 0,
+   "idx": 99,
+   "is_child_table": 0,
+   "link_doctype": "Asset Service Record",
+   "link_fieldname": "asset_maintenance",
+   "modified": "2026-11-05 11:00:00.000000",
+   "modified_by": "Administrator",
+   "name": "ua-asset-maintenance-service-record",
+   "owner": "Administrator",
+   "parent": "Asset Maintenance",
+   "parentfield": "links",
+   "parenttype": "DocType"
+  }
+ ],
+ "property_setters": [],
+ "sync_on_migrate": 1
+}

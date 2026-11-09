@@ -2,6 +2,8 @@ import frappe
 from frappe import _
 from frappe.utils import add_months, today
 
+from upande_asset.upande_asset.report_utils import asset_condition
+
 
 def execute(filters=None):
     filters = filters or {}
@@ -45,6 +47,9 @@ def _data(filters):
     if filters.get("overall_status"):
         conditions.append("cs.overall_status = %(overall_status)s")
         params["overall_status"] = filters["overall_status"]
+
+    if scope := asset_condition(filters, "cs.asset", params):
+        conditions.append(scope)
 
     where = "WHERE " + " AND ".join(conditions)
 

@@ -1,0 +1,127 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:service_type_name",
+ "creation": "2026-06-30 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "service_type_name",
+  "col_break_1",
+  "description",
+  "defaults_section",
+  "default_service_by",
+  "default_supplier",
+  "col_break_defaults",
+  "default_service_item",
+  "default_service_rate"
+ ],
+ "fields": [
+  {
+   "bold": 1,
+   "fieldname": "service_type_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Service Type Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "col_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "defaults_section",
+   "fieldtype": "Section Break",
+   "label": "Defaults",
+   "description": "Suggestions only: filled in on new service records and still changeable on each record.",
+   "show_description_on_click": 1
+  },
+  {
+   "fieldname": "default_service_by",
+   "fieldtype": "Select",
+   "label": "Default Service By",
+   "options": "\nInternal\nExternal",
+   "description": "Leave blank if it varies from job to job.",
+   "show_description_on_click": 1
+  },
+  {
+   "fieldname": "default_supplier",
+   "fieldtype": "Link",
+   "label": "Default Supplier",
+   "options": "Supplier",
+   "description": "Used when a record of this type is done externally.",
+   "show_description_on_click": 1
+  },
+  {
+   "fieldname": "col_break_defaults",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "default_service_item",
+   "fieldtype": "Link",
+   "label": "Service Item",
+   "options": "Item",
+   "description": "Non-stock item for the supplier's service. Added to Materials & Services so it can be requested for purchase.",
+   "show_description_on_click": 1
+  },
+  {
+   "fieldname": "default_service_rate",
+   "fieldtype": "Currency",
+   "label": "Estimated Rate",
+   "depends_on": "default_service_item"
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-06 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Asset",
+ "name": "Asset Service Type",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Maintenance Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Maintenance User",
+   "share": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "service_type_name",
+ "sort_order": "ASC",
+ "states": [],
+ "title_field": "service_type_name",
+ "track_changes": 1
+}

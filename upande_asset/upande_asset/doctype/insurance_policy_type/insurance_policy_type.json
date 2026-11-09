@@ -1,0 +1,149 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "field:policy_type_name",
+ "creation": "2026-11-09 14:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "naming_rule": "By fieldname",
+ "quick_entry": 1,
+ "title_field": "policy_type_name",
+ "search_fields": "ira_class,enabled",
+ "sort_field": "policy_type_name",
+ "sort_order": "ASC",
+ "module": "Upande Asset",
+ "name": "Insurance Policy Type",
+ "owner": "Administrator",
+ "modified_by": "Administrator",
+ "modified": "2026-11-09 14:00:00.000000",
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "states": [],
+ "row_format": "Dynamic",
+ "description": "Types of insurance policy. The Standard ones are the Insurance Regulatory Authority (IRA) classes of general insurance; add your own types and disable any you do not use.",
+ "fields": [
+  {
+   "fieldname": "policy_type_name",
+   "fieldtype": "Data",
+   "label": "Policy Type",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1,
+   "bold": 1
+  },
+  {
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled",
+   "default": "1",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Only enabled types can be chosen on new policies. Existing policies keep their type."
+  },
+  {
+   "fieldname": "is_standard",
+   "fieldtype": "Check",
+   "label": "Standard (IRA class)",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Comes with the app: one of the IRA classes of general insurance. It can be disabled but not renamed or deleted."
+  },
+  {
+   "fieldname": "col_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "ira_class",
+   "fieldtype": "Link",
+   "label": "IRA Class",
+   "options": "Insurance Policy Type",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "link_filters": "[[\"Insurance Policy Type\",\"is_standard\",\"=\",1]]",
+   "description": "The IRA class this type belongs to, for reporting and for matching claims to cover. A standard type is its own class.",
+   "show_description_on_click": 1
+  },
+  {
+   "fieldname": "comprehensive_cover",
+   "fieldtype": "Check",
+   "label": "Comprehensive cover",
+   "description": "Assets on a policy of this type show Comprehensive Insurance = Yes, and this cover is preferred when an asset is on several policies.",
+   "show_description_on_click": 1
+  },
+  {
+   "fieldname": "description_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  }
+ ],
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Maintenance Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts User",
+   "share": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Maintenance User",
+   "share": 1
+  }
+ ],
+ "field_order": [
+  "policy_type_name",
+  "enabled",
+  "is_standard",
+  "col_break_1",
+  "ira_class",
+  "comprehensive_cover",
+  "description_section",
+  "description"
+ ]
+}

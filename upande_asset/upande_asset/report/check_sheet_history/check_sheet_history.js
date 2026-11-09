@@ -57,3 +57,5 @@ frappe.query_reports["Check Sheet History"] = {
 		return value;
 	},
 };
+
+upande_asset.reports.add_scope_filters("Check Sheet History");

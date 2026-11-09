@@ -52,10 +52,18 @@ _NUMBER_CARDS = [
 def after_install():
     _create_asset_repair_custom_fields()
     _setup_workspace()
+    _setup_insurance()
 
 
 def after_migrate():
     _setup_workspace()
+    _setup_insurance()
+
+
+def _setup_insurance():
+    from upande_asset.upande_asset.insurance.setup import run_all
+
+    run_all()
 
 
 # ── Custom field ───────────────────────────────────────────────────────────────
@@ -128,58 +136,6 @@ def _create_number_cards():
     return name_map
 
 
-# ── Workspace Sidebar ──────────────────────────────────────────────────────────
-
-_SIDEBAR_ITEMS = [
-    # ── Overview ─────────────────────────────────────────────────────────────
-    {"label": "Home",                 "type": "Link", "link_type": "URL",     "url": "/app/asset-checksheet",          "icon": "home"},
-    # ── Core doctypes ─────────────────────────────────────────────────────────
-    {"label": "Asset Check Sheet",    "type": "Link", "link_type": "DocType", "link_to": "Asset Check Sheet",          "icon": "table-view"},
-    {"label": "Check Sheet Template", "type": "Link", "link_type": "DocType", "link_to": "Asset Check Sheet Template", "icon": "template"},
-    {"label": "Check Schedules",      "type": "Link", "link_type": "DocType", "link_to": "Asset Check Sheet Schedule", "icon": "calendar"},
-    {"label": "Mobile Check Sheet",   "type": "Link", "link_type": "URL",     "url": "/checksheet",                    "icon": "mobile"},
-    # ── Reports ───────────────────────────────────────────────────────────────
-    {"label": "Reports",              "type": "Section Break"},
-    {"label": "Check Sheet Compliance","type": "Link", "link_type": "Report", "link_to": "Check Sheet Compliance",    "child": 1, "icon": "chart"},
-    {"label": "Fault Analysis",       "type": "Link", "link_type": "Report",  "link_to": "Check Sheet Fault Analysis","child": 1, "icon": "alert-triangle"},
-    {"label": "Check Sheet History",  "type": "Link", "link_type": "Report",  "link_to": "Check Sheet History",       "child": 1, "icon": "preview"},
-]
-
-
-def _create_workspace_sidebar():
-    """Create or rebuild the Workspace Sidebar record that drives the left-nav
-    for the Asset Checksheet workspace.  Title must match the workspace NAME so
-    Frappe's sidebar lookup (keyed by title.lower()) resolves correctly."""
-    title = WORKSPACE_NAME   # "Asset Checksheet"
-
-    if frappe.db.exists("Workspace Sidebar", title):
-        ws_sidebar = frappe.get_doc("Workspace Sidebar", title)
-        ws_sidebar.items = []
-    else:
-        ws_sidebar = frappe.new_doc("Workspace Sidebar")
-        ws_sidebar.title  = title
-        ws_sidebar.module = "Upande Asset"
-        ws_sidebar.app    = "upande_asset"
-
-    for idx, item in enumerate(_SIDEBAR_ITEMS, start=1):
-        row = ws_sidebar.append("items", {})
-        row.idx        = idx
-        row.type       = item["type"]
-        row.label      = item["label"]
-        row.link_type  = item.get("link_type", "")
-        row.link_to    = item.get("link_to", "")
-        row.url        = item.get("url", "")
-        row.child      = item.get("child", 0)
-        row.icon       = item.get("icon", "")
-
-    if ws_sidebar.is_new():
-        ws_sidebar.insert(ignore_permissions=True)
-    else:
-        ws_sidebar.save(ignore_permissions=True)
-
-    frappe.db.commit()
-
-
 # ── Workspace ──────────────────────────────────────────────────────────────────
 
 def _setup_workspace():
@@ -187,7 +143,6 @@ def _setup_workspace():
     that appears under the standard ERPNext Assets workspace."""
 
     nc = _create_number_cards()   # returns label→name map; also deduplicates
-    _create_workspace_sidebar()   # defines the left-sidebar navigation items
 
     content = json.dumps([
         # ── Page header ──────────────────────────────────────────────────────

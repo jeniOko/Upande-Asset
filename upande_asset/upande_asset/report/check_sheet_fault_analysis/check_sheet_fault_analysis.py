@@ -1,6 +1,8 @@
 import frappe
 from frappe import _
 
+from upande_asset.upande_asset.report_utils import asset_condition
+
 FAULT_STATUSES = ("Fault / Defect", "Affected")
 SECTIONS = ["a", "b", "c", "d", "e", "f"]
 
@@ -45,6 +47,9 @@ def _data(filters):
     if filters.get("severity"):
         date_cond += " AND ci.severity = %(severity)s"
         params["severity"] = filters["severity"]
+
+    if scope := asset_condition(filters, "cs.asset", params):
+        date_cond += f" AND {scope}"
 
     # Build UNION across all 6 section item tables
     unions = []

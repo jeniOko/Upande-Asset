@@ -10,6 +10,7 @@ frappe.ui.form.on("Asset Check Sheet", {
 	refresh(frm) {
 		set_asset_filter(frm);
 		set_template_filter(frm);
+		upande_asset.why_why.setup(frm);
 
 		if (frm.doc.docstatus !== 1) return;
 
@@ -38,6 +39,8 @@ frappe.ui.form.on("Asset Check Sheet", {
 			.find("button")
 			.removeClass("btn-default")
 			.addClass("btn-primary");
+
+		add_insurance_claim_button(frm);
 	},
 
 	check_date(frm) {
@@ -273,6 +276,37 @@ function _create_new_maintenance(frm, fault_rows) {
 
 			frappe.set_route("Form", parent.doctype, parent.name);
 		},
+	});
+}
+
+// ── Create / View: Insurance Claim ───────────────────────────────────────────
+// Offered on submitted sheets for insured assets that recorded a High / Critical
+// fault (or are Needs Attention / Under Repair) and have no live claim yet.
+
+function add_insurance_claim_button(frm) {
+	if (frm.doc.insurance_claim) {
+		frm.add_custom_button(__("Insurance Claim"), function () {
+			frappe.set_route("Form", "Insurance Claim", frm.doc.insurance_claim);
+		}, __("View"));
+		return;
+	}
+	const serious = SECTIONS.some(function (sec) {
+		return (frm.doc["section_" + sec + "_items"] || []).some(function (row) {
+			return ["High", "Critical"].includes(row.severity);
+		});
+	});
+	if (!serious && !["Needs Attention", "Under Repair"].includes(frm.doc.overall_status)) return;
+	frappe.db.get_value("Asset", frm.doc.asset, "insurance_required").then(function (r) {
+		if (!cint(r.message && r.message.insurance_required)) return;
+		frm.add_custom_button(__("Raise Insurance Claim"), function () {
+			frappe.xcall(
+				"upande_asset.upande_asset.doctype.insurance_claim.insurance_claim.make_claim_from_check_sheet",
+				{ check_sheet: frm.doc.name }
+			).then(function (doc) {
+				const doclist = frappe.model.sync(doc);
+				frappe.set_route("Form", doclist[0].doctype, doclist[0].name);
+			});
+		}, __("Create"));
 	});
 }
 

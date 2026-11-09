@@ -1,0 +1,683 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "naming_series:",
+ "creation": "2026-11-04 09:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "details_section",
+  "naming_series",
+  "company",
+  "policy_number",
+  "policy_type",
+  "insurance_for",
+  "insurer",
+  "insurer_name",
+  "broker",
+  "cover_description",
+  "cost_center",
+  "col_break_1",
+  "start_date",
+  "end_date",
+  "status",
+  "premium_section",
+  "basic_premium",
+  "levies",
+  "total_premium",
+  "col_break_2",
+  "excess_type",
+  "excess_value",
+  "minimum_excess",
+  "assets_section",
+  "insured_assets",
+  "totals_section",
+  "total_sum_insured",
+  "col_break_3",
+  "sum_insured_at_inception",
+  "endorsements_tab",
+  "endorsements",
+  "address_and_contact_tab",
+  "section_addresses",
+  "supplier_address",
+  "address_display",
+  "col_break_address",
+  "contact_person",
+  "contact_display",
+  "contact_mobile",
+  "contact_email",
+  "shipping_address_section",
+  "dispatch_address",
+  "dispatch_address_display",
+  "column_break_99",
+  "shipping_address",
+  "shipping_address_display",
+  "company_billing_address_section",
+  "billing_address",
+  "column_break_103",
+  "billing_address_display",
+  "terms_tab",
+  "terms_section_break",
+  "tc_name",
+  "terms",
+  "more_info_tab",
+  "opening_section",
+  "is_opening",
+  "col_break_op",
+  "opening_journal_entry",
+  "links_section",
+  "renewed_from",
+  "renewed_to",
+  "purchase_invoice",
+  "col_break_4",
+  "procurement_doctype",
+  "procurement_name",
+  "amended_from",
+  "alert_section",
+  "last_alert_days",
+  "last_alert_on",
+  "renewal_links",
+  "connections_tab"
+ ],
+ "fields": [
+  {
+   "fieldname": "details_section",
+   "fieldtype": "Section Break",
+   "label": "Policy"
+  },
+  {
+   "default": "INS-POL-.YYYY.-.####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Naming Series",
+   "no_copy": 1,
+   "options": "INS-POL-.YYYY.-.####",
+   "print_hide": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company",
+   "remember_last_selected_value": 1,
+   "reqd": 1
+  },
+  {
+   "bold": 1,
+   "fieldname": "policy_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Policy Number"
+  },
+  {
+   "fieldname": "policy_type",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Policy Type",
+   "options": "Insurance Policy Type",
+   "reqd": 1
+  },
+  {
+   "default": "Assets",
+   "description": "Assets: list the insured assets below. Other: cover that is not tied to an asset (medical, WIBA, public liability, goods in transit…) – enter the sum insured and cost center on the policy.",
+   "fieldname": "insurance_for",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Insurance For",
+   "options": "\nAssets\nOther",
+   "reqd": 1,
+   "show_description_on_click": 1
+  },
+  {
+   "description": "Required before submit.",
+   "fieldname": "insurer",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Insurer",
+   "options": "Supplier"
+  },
+  {
+   "fetch_from": "insurer.supplier_name",
+   "fieldname": "insurer_name",
+   "fieldtype": "Data",
+   "label": "Insurer Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "broker",
+   "fieldtype": "Link",
+   "label": "Broker",
+   "options": "Supplier"
+  },
+  {
+   "depends_on": "eval:doc.insurance_for == 'Other'",
+   "fieldname": "cover_description",
+   "fieldtype": "Small Text",
+   "label": "What Is Insured",
+   "mandatory_depends_on": "eval:doc.insurance_for == 'Other'"
+  },
+  {
+   "depends_on": "eval:doc.insurance_for == 'Other'",
+   "description": "Cost center for the premium and its monthly release. Defaults to the company cost center.",
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center",
+   "show_description_on_click": 1
+  },
+  {
+   "fieldname": "col_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Start Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "End Date",
+   "reqd": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "no_copy": 1,
+   "options": "Draft\nActive\nExpiring\nRenewal In Progress\nAwaiting Premium\nExpired\nRenewed\nCancelled",
+   "read_only": 1
+  },
+  {
+   "fieldname": "premium_section",
+   "fieldtype": "Section Break",
+   "label": "Premium & Excess"
+  },
+  {
+   "fieldname": "basic_premium",
+   "fieldtype": "Currency",
+   "label": "Basic Premium",
+   "options": "Company:company:default_currency"
+  },
+  {
+   "description": "IRA levies + stamp duty",
+   "fieldname": "levies",
+   "fieldtype": "Currency",
+   "label": "Levies",
+   "options": "Company:company:default_currency"
+  },
+  {
+   "bold": 1,
+   "fieldname": "total_premium",
+   "fieldtype": "Currency",
+   "label": "Total Premium",
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "col_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Fixed",
+   "fieldname": "excess_type",
+   "fieldtype": "Select",
+   "label": "Excess Type",
+   "options": "\nFixed\nPercent of Claim"
+  },
+  {
+   "description": "Amount (Fixed) or percentage of the claim (Percent of Claim).",
+   "fieldname": "excess_value",
+   "fieldtype": "Float",
+   "label": "Excess Value"
+  },
+  {
+   "depends_on": "eval:doc.excess_type=='Percent of Claim'",
+   "fieldname": "minimum_excess",
+   "fieldtype": "Currency",
+   "label": "Minimum Excess",
+   "options": "Company:company:default_currency"
+  },
+  {
+   "fieldname": "assets_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "allow_on_submit": 1,
+   "depends_on": "eval:(doc.insurance_for || 'Assets') == 'Assets'",
+   "fieldname": "insured_assets",
+   "fieldtype": "Table",
+   "label": "Insured Assets",
+   "mandatory_depends_on": "eval:(doc.insurance_for || 'Assets') == 'Assets' && doc.docstatus == 0",
+   "options": "Insurance Policy Asset"
+  },
+  {
+   "fieldname": "totals_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "allow_on_submit": 1,
+   "bold": 1,
+   "description": "Assets: total of active rows. Other: enter the sum insured; change it after submit with Endorse → Change Sum Insured.",
+   "fieldname": "total_sum_insured",
+   "fieldtype": "Currency",
+   "label": "Total Sum Insured",
+   "options": "Company:company:default_currency",
+   "read_only": 0,
+   "read_only_depends_on": "eval:(doc.insurance_for || 'Assets') == 'Assets' || doc.docstatus == 1",
+   "show_description_on_click": 1
+  },
+  {
+   "fieldname": "col_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "allow_on_submit": 1,
+   "description": "Snapshot on submit; base for pro-rata endorsement premiums.",
+   "fieldname": "sum_insured_at_inception",
+   "fieldtype": "Currency",
+   "label": "Sum Insured At Inception",
+   "no_copy": 1,
+   "options": "Company:company:default_currency",
+   "read_only": 1,
+   "show_description_on_click": 1
+  },
+  {
+   "fieldname": "endorsements_tab",
+   "fieldtype": "Tab Break",
+   "label": "Endorsements"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "endorsements",
+   "fieldtype": "Table",
+   "label": "Endorsements",
+   "no_copy": 1,
+   "options": "Insurance Policy Endorsement Log",
+   "read_only": 1
+  },
+  {
+   "fieldname": "address_and_contact_tab",
+   "fieldtype": "Tab Break",
+   "label": "Address & Contact"
+  },
+  {
+   "fieldname": "section_addresses",
+   "fieldtype": "Section Break",
+   "label": "Insurer Address"
+  },
+  {
+   "fieldname": "supplier_address",
+   "fieldtype": "Link",
+   "label": "Insurer Address",
+   "options": "Address",
+   "print_hide": 1
+  },
+  {
+   "fieldname": "address_display",
+   "fieldtype": "Text Editor",
+   "label": "Insurer Address Details",
+   "read_only": 1
+  },
+  {
+   "fieldname": "col_break_address",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "contact_person",
+   "fieldtype": "Link",
+   "label": "Insurer Contact",
+   "options": "Contact",
+   "print_hide": 1
+  },
+  {
+   "fieldname": "contact_display",
+   "fieldtype": "Small Text",
+   "label": "Contact Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "contact_mobile",
+   "fieldtype": "Small Text",
+   "label": "Contact Mobile No",
+   "options": "Phone",
+   "read_only": 1
+  },
+  {
+   "fieldname": "contact_email",
+   "fieldtype": "Small Text",
+   "label": "Contact Email",
+   "options": "Email",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "shipping_address_section",
+   "fieldtype": "Section Break",
+   "label": "Shipping Address"
+  },
+  {
+   "fieldname": "dispatch_address",
+   "fieldtype": "Link",
+   "label": "Dispatch Address",
+   "options": "Address",
+   "print_hide": 1
+  },
+  {
+   "fieldname": "dispatch_address_display",
+   "fieldtype": "Text Editor",
+   "label": "Dispatch Address Details",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_99",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "shipping_address",
+   "fieldtype": "Link",
+   "label": "Shipping Address",
+   "options": "Address",
+   "print_hide": 1
+  },
+  {
+   "fieldname": "shipping_address_display",
+   "fieldtype": "Text Editor",
+   "label": "Shipping Address Details",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "company_billing_address_section",
+   "fieldtype": "Section Break",
+   "label": "Company Billing Address"
+  },
+  {
+   "fieldname": "billing_address",
+   "fieldtype": "Link",
+   "label": "Company Billing Address",
+   "options": "Address"
+  },
+  {
+   "fieldname": "column_break_103",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "billing_address_display",
+   "fieldtype": "Text Editor",
+   "label": "Billing Address Details",
+   "read_only": 1
+  },
+  {
+   "fieldname": "terms_tab",
+   "fieldtype": "Tab Break",
+   "label": "Terms"
+  },
+  {
+   "fieldname": "terms_section_break",
+   "fieldtype": "Section Break",
+   "label": "Terms & Conditions",
+   "options": "fa fa-legal"
+  },
+  {
+   "fieldname": "tc_name",
+   "fieldtype": "Link",
+   "label": "Terms",
+   "options": "Terms and Conditions",
+   "print_hide": 1
+  },
+  {
+   "fieldname": "terms",
+   "fieldtype": "Text Editor",
+   "label": "Terms and Conditions"
+  },
+  {
+   "fieldname": "more_info_tab",
+   "fieldtype": "Tab Break",
+   "label": "More Info"
+  },
+  {
+   "fieldname": "opening_section",
+   "fieldtype": "Section Break",
+   "label": "Opening Policy"
+  },
+  {
+   "default": "No",
+   "description": "Yes = a policy bought and paid before the company used ERPNext. No premium invoice is raised for it; its unexpired premium is part of the opening balances entered by Accounts.",
+   "fieldname": "is_opening",
+   "fieldtype": "Select",
+   "label": "Is Opening",
+   "options": "\nNo\nYes",
+   "show_description_on_click": 1
+  },
+  {
+   "fieldname": "col_break_op",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.is_opening=='Yes'",
+   "fieldname": "opening_journal_entry",
+   "fieldtype": "Link",
+   "label": "Opening Journal Entry",
+   "options": "Journal Entry"
+  },
+  {
+   "fieldname": "links_section",
+   "fieldtype": "Section Break",
+   "hidden": 1,
+   "label": "Renewal & Procurement"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "renewed_from",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "Renewed From",
+   "options": "Insurance Policy",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "renewed_to",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "Renewed To",
+   "no_copy": 1,
+   "options": "Insurance Policy",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "purchase_invoice",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "Purchase Invoice",
+   "no_copy": 1,
+   "options": "Purchase Invoice",
+   "read_only": 1
+  },
+  {
+   "fieldname": "col_break_4",
+   "fieldtype": "Column Break",
+   "hidden": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "procurement_doctype",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "Procurement Doctype",
+   "no_copy": 1,
+   "options": "DocType",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "procurement_name",
+   "fieldtype": "Dynamic Link",
+   "hidden": 1,
+   "label": "Procurement Name",
+   "no_copy": 1,
+   "options": "procurement_doctype",
+   "read_only": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Insurance Policy",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "alert_section",
+   "fieldtype": "Section Break",
+   "hidden": 1,
+   "label": "Alerts"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "last_alert_days",
+   "fieldtype": "Int",
+   "label": "Last Alert Days",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "last_alert_on",
+   "fieldtype": "Date",
+   "label": "Last Alert On",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "renewal_links",
+   "fieldtype": "Table",
+   "hidden": 1,
+   "label": "Renewal Links",
+   "no_copy": 1,
+   "options": "Insurance Policy Renewal Link",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "connections_tab",
+   "fieldtype": "Tab Break",
+   "label": "Connections",
+   "show_dashboard": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-11-09 13:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Asset",
+ "name": "Insurance Policy",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts User",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Maintenance Manager",
+   "share": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "search_fields": "policy_number,insurer,policy_type",
+ "show_title_field_in_link": 0,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [
+  {
+   "color": "Red",
+   "title": "Draft"
+  },
+  {
+   "color": "Green",
+   "title": "Active"
+  },
+  {
+   "color": "Orange",
+   "title": "Expiring"
+  },
+  {
+   "color": "Gray",
+   "title": "Expired"
+  },
+  {
+   "color": "Blue",
+   "title": "Renewed"
+  },
+  {
+   "color": "Red",
+   "title": "Cancelled"
+  }
+ ],
+ "title_field": "policy_number",
+ "track_changes": 1
+}

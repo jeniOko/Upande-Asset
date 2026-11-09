@@ -31,19 +31,31 @@ def check_missed_asset_checks():
         fields=["name", "asset", "asset_name", "check_sheet_template"],
     )
 
+    from upande_asset.upande_asset.emails import Batch
+
+    # One email per recipient a day, listing every overdue check (not one email per asset).
+    batch = Batch("Asset Check Sheet Schedule",
+        single=lambda i: _overdue_pair(check_sheet_overdue_email(**i)),
+        grouped=check_sheet_group_email,
+        send_email=lambda recipients, subject, message: frappe.sendmail(recipients=recipients, subject=subject, message=message))
     for sched in schedules:
         try:
-            _process_schedule(sched)
+            _process_schedule(sched, batch)
         except Exception:
             frappe.log_error(
                 frappe.get_traceback(),
                 f"Check sheet schedule error: {sched['name']}",
             )
+    batch.send()
+
+
+def _overdue_pair(email):
+    return email["subject"], email["message"]
 
 
 # ── Per-schedule logic ─────────────────────────────────────────────────────────
 
-def _process_schedule(sched):
+def _process_schedule(sched, batch=None):
     tmpl = frappe.get_doc("Asset Check Sheet Template", sched["check_sheet_template"])
 
     freq_days = (
@@ -67,9 +79,15 @@ def _process_schedule(sched):
     )
 
     last_date = getdate(last[0]["check_date"]) if last else None
-    due = add_days(last_date, freq_days) if last_date else getdate(today())
+    # Never checked: the first check was due when the schedule was set up. (Counting from
+    # "today" made the due date move every day, so the overdue days never grew.)
+    if last_date:
+        due = add_days(last_date, freq_days)
+    else:
+        due = getdate(frappe.db.get_value("Asset Check Sheet Schedule", sched["name"], "creation"))
+    # Due today is not overdue yet: the check can still be done today.
     days_overdue = max(0, (getdate(today()) - getdate(due)).days)
-    is_overdue = getdate(today()) >= due
+    is_overdue = days_overdue > 0
 
     # Update schedule record status fields
     frappe.db.set_value(
@@ -90,7 +108,11 @@ def _process_schedule(sched):
     if not recipients:
         return
 
-    _send_notification(sched, tmpl, last_date, due, days_overdue, recipients)
+    if batch is None:
+        _send_notification(sched, tmpl, last_date, due, days_overdue, recipients)
+    else:
+        batch.add(sched["name"], {"sched": sched, "tmpl": tmpl, "last_date": last_date, "due": due,
+            "days_overdue": days_overdue}, emails=recipients)
 
 
 def _get_recipients(sched, tmpl):
@@ -120,46 +142,42 @@ def _get_recipients(sched, tmpl):
 
 
 def _send_notification(sched, tmpl, last_date, due, days_overdue, recipients):
-    asset_link = f'<a href="/app/asset/{sched["asset"]}">{sched["asset"]}</a>'
-    freq_label  = (
-        f"Every {tmpl.custom_frequency_days or '?'} days"
+    frappe.sendmail(recipients=recipients, **check_sheet_overdue_email(sched, tmpl, last_date, due, days_overdue))
+
+
+def check_sheet_overdue_email(sched, tmpl, last_date, due, days_overdue):
+    """Overdue check sheet, in the shared reminder layout (absolute links, site date format)."""
+    from frappe import _
+    from frappe.utils import escape_html, get_url, get_url_to_form
+
+    from upande_asset.upande_asset import emails as em
+
+    freq_label = (
+        _("Every {0} days").format(tmpl.custom_frequency_days or "?")
         if tmpl.frequency == "Custom"
-        else tmpl.frequency
+        else _(tmpl.frequency)
     )
-    last_str = str(last_date) if last_date else "Never"
-
-    subject = (
-        f"[Overdue] {freq_label} check missed — "
-        f"{sched['asset_name'] or sched['asset']} ({days_overdue} day(s))"
+    asset_label = sched["asset_name"] or sched["asset"]
+    new_sheet = get_url(f"/desk/asset-check-sheet/new?asset={frappe.utils.quote(sched['asset'])}"
+        f"&check_sheet_template={frappe.utils.quote(tmpl.name)}")
+    message = em.card(
+        area=_("Check Sheets"), tone="danger", status=_("Overdue by {0} days").format(days_overdue),
+        title=_("{0} check missed: {1}").format(freq_label, asset_label),
+        intro=escape_html(_("The scheduled check for this asset has not been done. Complete a check sheet as soon as possible.")),
+        facts=[
+            (_("Asset"), em.form_link("Asset", sched["asset"], f"{asset_label} ({sched['asset']})")),
+            (_("Check sheet"), escape_html(tmpl.name)),
+            (_("How often"), escape_html(freq_label)),
+            (_("Last check"), em.date(last_date) if last_date else _("Never")),
+            (_("Was due by"), em.date(due)),
+        ],
+        button=(_("Start check sheet"), new_sheet),
+        company=frappe.db.get_value("Asset", sched["asset"], "company"),
+        links=[(_("Mobile check sheet"), get_url("/checksheet")),
+            (_("Check sheet history"), get_url_to_form("Asset", sched["asset"]))],
     )
-
-    message = f"""
-<p>A scheduled asset check sheet has not been completed on time.</p>
-<table style="border-collapse:collapse;width:100%;max-width:480px">
-  <tr><td style="padding:6px 12px;background:#f3f4f6;font-weight:600">Asset</td>
-      <td style="padding:6px 12px">{asset_link}</td></tr>
-  <tr><td style="padding:6px 12px;background:#f3f4f6;font-weight:600">Template</td>
-      <td style="padding:6px 12px">{tmpl.name}</td></tr>
-  <tr><td style="padding:6px 12px;background:#f3f4f6;font-weight:600">Frequency</td>
-      <td style="padding:6px 12px">{freq_label}</td></tr>
-  <tr><td style="padding:6px 12px;background:#f3f4f6;font-weight:600">Last Check</td>
-      <td style="padding:6px 12px">{last_str}</td></tr>
-  <tr><td style="padding:6px 12px;background:#f3f4f6;font-weight:600">Was Due By</td>
-      <td style="padding:6px 12px">{due}</td></tr>
-  <tr><td style="padding:6px 12px;background:#fee2e2;font-weight:600;color:#7f1d1d">Days Overdue</td>
-      <td style="padding:6px 12px;background:#fee2e2;color:#7f1d1d"><b>{days_overdue}</b></td></tr>
-</table>
-<p style="margin-top:16px">Please ensure a check sheet is completed as soon as possible.</p>
-<p><a href="/app/asset-check-sheet/new-asset-check-sheet-1">Create Check Sheet</a>
-   &nbsp;|&nbsp;
-   <a href="/checksheet">Mobile Check Sheet</a></p>
-"""
-
-    frappe.sendmail(
-        recipients=recipients,
-        subject=subject,
-        message=message,
-    )
+    subject = _("Overdue: {0} check missed for {1} ({2} days)").format(freq_label, asset_label, days_overdue)
+    return {"subject": subject, "message": message}
 
 
 def _get_team_manager_email(team_name):
@@ -170,3 +188,29 @@ def _get_team_manager_email(team_name):
     except Exception:
         pass
     return None
+
+
+def check_sheet_group_email(items):
+    from frappe import _
+    from frappe.utils import escape_html, get_url, get_url_to_list
+
+    from upande_asset.upande_asset import emails as em
+
+    items = sorted(items, key=lambda i: -i["days_overdue"])
+    rows = [[
+        em.form_link("Asset", i["sched"]["asset"], i["sched"]["asset_name"] or i["sched"]["asset"]),
+        escape_html(i["tmpl"].name),
+        em.date(i["last_date"]) if i["last_date"] else _("Never"),
+        em.date(i["due"]),
+        em.pill(_("{0} days").format(i["days_overdue"]), "danger"),
+    ] for i in items]
+    subject = _("{0} asset checks are overdue").format(len(items))
+    message = em.grouped(
+        area=_("Check Sheets"), tone="danger", title=_("{0} asset checks are overdue").format(len(items)),
+        status=_("Most overdue {0} days").format(items[0]["days_overdue"]),
+        intro=escape_html(_("These scheduled checks have not been done. Complete a check sheet for each asset as soon as possible.")),
+        headers=[_("Asset"), _("Check sheet"), _("Last check"), _("Was due by"), _("Overdue")], rows=rows,
+        button=(_("Open check sheet schedules"), get_url_to_list("Asset Check Sheet Schedule")),
+        company=frappe.db.get_value("Asset", items[0]["sched"]["asset"], "company"),
+    )
+    return subject, message

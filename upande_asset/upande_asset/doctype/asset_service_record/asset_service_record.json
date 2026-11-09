@@ -1,0 +1,525 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "autoname": "naming_series:",
+ "creation": "2026-06-30 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "title",
+  "asset",
+  "asset_name",
+  "col_break_1",
+  "asset_category",
+  "company",
+  "service_by",
+  "status",
+  "sec_service_details",
+  "service_type",
+  "service_date",
+  "col_break_2",
+  "next_due_date",
+  "sec_supplier",
+  "supplier",
+  "supplier_name",
+  "col_break_3",
+  "reference_no",
+  "sec_work",
+  "performed_by",
+  "completed_by",
+  "col_break_work",
+  "sec_description",
+  "description",
+  "col_break_4",
+  "findings",
+  "accounting_dimensions_section",
+  "cost_center",
+  "dimension_col_break",
+  "materials_tab",
+  "sec_materials",
+  "materials",
+  "sec_materials_total",
+  "materials_cost",
+  "col_break_mat",
+  "sec_cost",
+  "invoices",
+  "sec_services_total",
+  "services_cost",
+  "col_break_svc",
+  "sec_stock_items",
+  "stock_items",
+  "sec_stock_items_total",
+  "consumed_items_cost",
+  "col_break_stock",
+  "consumption_stock_entry",
+  "sec_total",
+  "total_service_cost",
+  "col_break_total",
+  "maintenance_tab",
+  "sec_maintenance",
+  "tasks",
+  "sec_assignment",
+  "assigned_to",
+  "more_info_tab",
+  "sec_more_info",
+  "naming_series",
+  "amended_from",
+  "last_reminder_days",
+  "last_reminder_on",
+  "connections_tab"
+ ],
+ "fields": [
+  {
+   "bold": 1,
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Title",
+   "reqd": 1
+  },
+  {
+   "fieldname": "asset",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Asset",
+   "options": "Asset",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fetch_from": "asset.asset_name",
+   "fieldname": "asset_name",
+   "fieldtype": "Read Only",
+   "label": "Asset Name"
+  },
+  {
+   "fieldname": "col_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "asset.asset_category",
+   "fieldname": "asset_category",
+   "fieldtype": "Read Only",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Asset Category"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "service_by",
+   "fieldtype": "Select",
+   "label": "Service By",
+   "options": "\nInternal\nExternal",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Internal: our own technicians, using parts from stores or bought in. External: a supplier does the work.",
+   "show_description_on_click": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "\nPending\nIn Progress\nCompleted\nCancelled",
+   "default": "Pending",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "allow_on_submit": 1,
+   "no_copy": 1,
+   "description": "Pending / In Progress while in draft. Submitting marks it Completed (and completes the maintenance task).",
+   "show_description_on_click": 1
+  },
+  {
+   "fieldname": "sec_service_details",
+   "fieldtype": "Section Break",
+   "label": "Service Details"
+  },
+  {
+   "fieldname": "service_type",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Service Type",
+   "options": "Asset Service Type",
+   "search_index": 1,
+   "description": "Required before submitting.",
+   "show_description_on_click": 1
+  },
+  {
+   "fieldname": "service_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Service Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "col_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "next_due_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Next Due Date"
+  },
+  {
+   "fieldname": "sec_supplier",
+   "fieldtype": "Section Break",
+   "label": "Service Provider",
+   "depends_on": "eval:doc.service_by=='External'"
+  },
+  {
+   "fieldname": "supplier",
+   "fieldtype": "Link",
+   "label": "Supplier",
+   "options": "Supplier"
+  },
+  {
+   "fetch_from": "supplier.supplier_name",
+   "fieldname": "supplier_name",
+   "fieldtype": "Read Only",
+   "label": "Supplier Name"
+  },
+  {
+   "fieldname": "col_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "reference_no",
+   "fieldtype": "Data",
+   "label": "Supplier Reference",
+   "description": "Invoice number, policy number, certificate reference, etc.",
+   "depends_on": "eval:doc.service_by=='External'"
+  },
+  {
+   "fieldname": "sec_work",
+   "fieldtype": "Section Break",
+   "label": "Work Done"
+  },
+  {
+   "description": "Technician who did the work.",
+   "fieldname": "performed_by",
+   "fieldtype": "Data",
+   "label": "Performed By",
+   "show_description_on_click": 1
+  },
+  {
+   "fieldname": "completed_by",
+   "fieldtype": "Link",
+   "label": "Completed By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "col_break_work",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sec_description",
+   "fieldtype": "Section Break",
+   "label": "Description"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Long Text",
+   "label": "Description",
+   "description": "Details of the service activity and what was done."
+  },
+  {
+   "fieldname": "col_break_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "findings",
+   "fieldtype": "Long Text",
+   "label": "Findings / Outcome",
+   "description": "Observations after the service — condition of asset, parts replaced, etc."
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "accounting_dimensions_section",
+   "fieldtype": "Section Break",
+   "label": "Accounting Dimensions"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center",
+   "description": "Taken from the asset. Parts and services requested or issued from this record are charged here.",
+   "show_description_on_click": 1
+  },
+  {
+   "fieldname": "dimension_col_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "materials_tab",
+   "fieldtype": "Tab Break",
+   "label": "Materials & Cost"
+  },
+  {
+   "fieldname": "sec_materials",
+   "fieldtype": "Section Break",
+   "label": "Materials, Assets & Services"
+  },
+  {
+   "fieldname": "materials",
+   "fieldtype": "Table",
+   "label": "Stock Items, Assets & Services",
+   "options": "Asset Service Material",
+   "allow_on_submit": 1,
+   "description": "Everything this job needs: stock items (parts, consumables), asset items (components that build or upgrade the asset) and services. Material Request opens the right request for each row: in stock → from stores; out of stock → purchase or transfer, then issue once received. Asset items and services are purchased.",
+   "show_description_on_click": 1
+  },
+  {
+   "fieldname": "sec_materials_total",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "materials_cost",
+   "fieldtype": "Currency",
+   "label": "Total Materials Cost",
+   "options": "Company:company:default_currency",
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "no_copy": 1,
+   "description": "Parts issued from stores (submitted Stock Entries)."
+  },
+  {
+   "fieldname": "col_break_mat",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sec_cost",
+   "fieldtype": "Section Break",
+   "label": "Services"
+  },
+  {
+   "fieldname": "invoices",
+   "fieldtype": "Table",
+   "label": "Service Invoices",
+   "options": "Asset Repair Purchase Invoice",
+   "description": "Purchase invoices for this job. Amounts allocated here and on Asset Repairs share one balance per invoice and expense account.",
+   "show_description_on_click": 1
+  },
+  {
+   "fieldname": "sec_services_total",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "services_cost",
+   "fieldtype": "Currency",
+   "label": "Total Services Cost",
+   "options": "Company:company:default_currency",
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "col_break_svc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sec_total",
+   "fieldtype": "Section Break",
+   "label": "Overall"
+  },
+  {
+   "fieldname": "total_service_cost",
+   "fieldtype": "Currency",
+   "label": "Overall Cost",
+   "options": "Company:company:default_currency",
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "description": "Total Materials Cost + Total Services Cost + Consumed Items Cost.",
+   "bold": 1
+  },
+  {
+   "fieldname": "col_break_total",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "maintenance_tab",
+   "fieldtype": "Tab Break",
+   "label": "Maintenance Task"
+  },
+  {
+   "fieldname": "sec_maintenance",
+   "fieldtype": "Section Break",
+   "label": "Maintenance Tasks"
+  },
+  {
+   "fieldname": "tasks",
+   "fieldtype": "Table",
+   "label": "Maintenance Tasks",
+   "options": "Asset Service Record Task",
+   "description": "Open Asset Maintenance Logs of this asset that this service completes. Completing the record completes each of them and schedules the next occurrence.",
+   "show_description_on_click": 1
+  },
+  {
+   "fieldname": "sec_assignment",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "assigned_to",
+   "fieldtype": "Link",
+   "label": "Assigned To",
+   "options": "User",
+   "in_standard_filter": 1,
+   "fetch_from": "asset_maintenance_log.task_assignee_email",
+   "fetch_if_empty": 1
+  },
+  {
+   "fieldname": "more_info_tab",
+   "fieldtype": "Tab Break",
+   "label": "More Info"
+  },
+  {
+   "fieldname": "sec_more_info",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "ASR-.YYYY.-",
+   "reqd": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Asset Service Record",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "connections_tab",
+   "fieldtype": "Tab Break",
+   "label": "Connections",
+   "show_dashboard": 1
+  },
+  {
+   "fieldname": "last_reminder_days",
+   "fieldtype": "Int",
+   "label": "Last Reminder (days before due)",
+   "read_only": 1,
+   "hidden": 1,
+   "no_copy": 1,
+   "description": "Band of the last reminder sent; -1 = overdue reminder."
+  },
+  {
+   "fieldname": "last_reminder_on",
+   "fieldtype": "Date",
+   "label": "Last Reminder On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "sec_stock_items",
+   "fieldtype": "Section Break",
+   "label": "Consumed Stock Items",
+   "description": "Parts taken from the warehouse for this job, as on ERPNext's Asset Repair. They are issued with a Stock Entry when the record is completed."
+  },
+  {
+   "fieldname": "stock_items",
+   "fieldtype": "Table",
+   "label": "Stock Items",
+   "options": "Asset Repair Consumed Item"
+  },
+  {
+   "fieldname": "sec_stock_items_total",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "consumed_items_cost",
+   "fieldtype": "Currency",
+   "label": "Consumed Items Cost",
+   "options": "Company:company:default_currency",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "col_break_stock",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "consumption_stock_entry",
+   "fieldtype": "Link",
+   "label": "Stock Entry",
+   "options": "Stock Entry",
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1,
+   "description": "Issue of the Consumed Stock Items, made when the record was completed."
+  }
+ ],
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-11-09 11:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Asset",
+ "name": "Asset Service Record",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Maintenance Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Maintenance User",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "search_fields": "asset,service_type,service_date",
+ "sort_field": "service_date",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "title",
+ "track_changes": 1
+}

@@ -37,7 +37,7 @@
    "insert_after": "description",
    "is_system_generated": 0,
    "is_virtual": 0,
-   "label": "",
+   "label": "General Setup",
    "length": 0,
    "link_filters": null,
    "mandatory_depends_on": null,

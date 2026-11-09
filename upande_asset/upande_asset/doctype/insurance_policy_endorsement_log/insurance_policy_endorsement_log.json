@@ -1,0 +1,191 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-11-04 09:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "endorsement_no",
+  "effective_date",
+  "requested_on",
+  "endorsement_type",
+  "asset",
+  "old_sum_insured",
+  "new_sum_insured",
+  "col_break_1",
+  "premium_adjustment",
+  "reference_doctype",
+  "reference_name",
+  "status",
+  "remarks",
+  "endorsement_group",
+  "policy_row",
+  "old_row_status",
+  "old_removed_on"
+ ],
+ "fields": [
+  {
+   "allow_on_submit": 1,
+   "columns": 1,
+   "fieldname": "endorsement_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Endorsement No",
+   "read_only": 1,
+   "description": "The insurer's endorsement number, entered when the insurer confirms the change."
+  },
+  {
+   "allow_on_submit": 1,
+   "columns": 1,
+   "fieldname": "effective_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Effective Date",
+   "read_only": 1,
+   "description": "Requested date while Requested; the insurer's effective date once confirmed."
+  },
+  {
+   "allow_on_submit": 1,
+   "columns": 2,
+   "fieldname": "endorsement_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Endorsement Type",
+   "options": "Add Assets\nRemove Assets\nChange Sum Insured\nCancel Policy",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "columns": 1,
+   "fieldname": "asset",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Asset",
+   "options": "Asset",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "old_sum_insured",
+   "fieldtype": "Currency",
+   "label": "Old Sum Insured",
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "columns": 1,
+   "fieldname": "new_sum_insured",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "New Sum Insured",
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "col_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "allow_on_submit": 1,
+   "columns": 1,
+   "fieldname": "premium_adjustment",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Premium Adjustment",
+   "options": "Company:company:default_currency",
+   "read_only": 1,
+   "description": "Estimated (pro-rata) while Requested; the insurer's figure once confirmed. Negative = refund."
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "reference_doctype",
+   "fieldtype": "Link",
+   "label": "Reference Doctype",
+   "options": "DocType",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "columns": 1,
+   "fieldname": "reference_name",
+   "fieldtype": "Dynamic Link",
+   "in_list_view": 1,
+   "label": "Reference Name",
+   "options": "reference_doctype",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "columns": 1,
+   "default": "Active",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Requested\nActive\nReversed\nWithdrawn",
+   "read_only": 1,
+   "description": "Requested: waiting for the insurer; the policy is not changed yet. Active: confirmed by the insurer and applied. Withdrawn: request dropped. Reversed: an applied endorsement undone."
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "description": "Groups the log rows written by one endorsement call, so they reverse together.",
+   "fieldname": "endorsement_group",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Endorsement Group",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "policy_row",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Policy Row",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "old_row_status",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Old Row Status",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "old_removed_on",
+   "fieldtype": "Date",
+   "hidden": 1,
+   "label": "Old Removed On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "requested_on",
+   "fieldtype": "Date",
+   "label": "Requested On",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-11-04 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Asset",
+ "name": "Insurance Policy Endorsement Log",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}
