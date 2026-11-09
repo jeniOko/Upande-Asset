@@ -1,0 +1,128 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-11-04 09:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "company",
+  "warehouses_section",
+  "parts_warehouse",
+  "col_break_wh",
+  "insurance_request_warehouse",
+  "insurance_accounts_section",
+  "prepaid_insurance_account",
+  "insurance_expense_account",
+  "col_break_1",
+  "claim_recoverable_account",
+  "claim_recovery_income_account",
+  "claim_shortfall_account"
+ ],
+ "fields": [
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "warehouses_section",
+   "fieldtype": "Section Break",
+   "label": "Warehouses"
+  },
+  {
+   "fieldname": "parts_warehouse",
+   "fieldtype": "Link",
+   "label": "Workshop parts warehouse",
+   "options": "Warehouse",
+   "in_list_view": 1,
+   "columns": 2,
+   "description": "Filled in on new material rows on Service Records and Asset Repairs, for example the workshop store. You can still change it on a row.",
+   "show_description_on_click": 1
+  },
+  {
+   "fieldname": "col_break_wh",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "insurance_request_warehouse",
+   "fieldtype": "Link",
+   "label": "Insurance request warehouse",
+   "options": "Warehouse",
+   "description": "Put on Material Request rows for insurance renewals and endorsements, if your Material Requests need a warehouse.",
+   "show_description_on_click": 1
+  },
+  {
+   "fieldname": "insurance_accounts_section",
+   "fieldtype": "Section Break",
+   "label": "Insurance Accounts"
+  },
+  {
+   "description": "An Asset account. It receives the premium when the premium is invoiced.",
+   "fieldname": "prepaid_insurance_account",
+   "fieldtype": "Link",
+   "label": "Prepaid",
+   "options": "Account",
+   "in_list_view": 1,
+   "columns": 2,
+   "show_description_on_click": 1
+  },
+  {
+   "description": "Receives the premium month by month over the cover period.",
+   "fieldname": "insurance_expense_account",
+   "fieldtype": "Link",
+   "label": "Expense",
+   "options": "Account",
+   "in_list_view": 1,
+   "columns": 2,
+   "show_description_on_click": 1
+  },
+  {
+   "fieldname": "col_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Holds what the insurer owes on approved claims. It must be a Payable account so the insurer can be the party.",
+   "fieldname": "claim_recoverable_account",
+   "fieldtype": "Link",
+   "label": "Recoverable",
+   "options": "Account",
+   "in_list_view": 1,
+   "columns": 2,
+   "show_description_on_click": 1
+  },
+  {
+   "description": "Credited when a repair claim is approved. Total loss claims credit the company's disposal account instead.",
+   "fieldname": "claim_recovery_income_account",
+   "fieldtype": "Link",
+   "label": "Income",
+   "options": "Account",
+   "show_description_on_click": 1
+  },
+  {
+   "description": "Debited when a claim is closed for less than was approved.",
+   "fieldname": "claim_shortfall_account",
+   "fieldtype": "Link",
+   "label": "Shortfall",
+   "options": "Account",
+   "show_description_on_click": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-11-09 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Asset",
+ "name": "Asset Company Default",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

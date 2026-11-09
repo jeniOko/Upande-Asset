@@ -1,0 +1,448 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-11-04 09:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "display_tab",
+  "assets_module_section",
+  "add_to_assets_sidebar",
+  "col_break_display",
+  "add_to_assets_landing_page",
+  "why_why_display_section",
+  "show_why_why_guide",
+  "maintenance_tab",
+  "service_records_section",
+  "auto_create_service_records",
+  "repair_materials_section",
+  "repair_material_requests",
+  "service_materials_section",
+  "col_break_requesting",
+  "maintenance_mr_status",
+  "col_break_service_materials",
+  "allow_direct_material_issue",
+  "direct_issue_status",
+  "insurance_tab",
+  "premium_section",
+  "premium_item",
+  "col_break_1",
+  "split_premium_by_cost_center",
+  "procurement_section",
+  "renewal_procurement",
+  "endorsements_via_po",
+  "col_break_procurement",
+  "material_request_status",
+  "purchase_order_status",
+  "alerts_section",
+  "renewal_alert_days",
+  "col_break_2",
+  "expiring_threshold_days",
+  "alert_recipients_section",
+  "renewal_reminder_roles",
+  "notify_policy_owner",
+  "notify_broker",
+  "col_break_alert_recipients",
+  "digest_frequency",
+  "digest_every_days",
+  "digest_roles",
+  "digest_last_sent",
+  "endorsement_todo_role",
+  "claims_section",
+  "claim_followup_days",
+  "col_break_claims",
+  "claim_followup_roles",
+  "notify_claim_owner",
+  "claim_docs_section",
+  "claim_required_documents",
+  "accounts_tab",
+  "accounts_section",
+  "company_defaults"
+ ],
+ "fields": [
+  {
+   "fieldname": "display_tab",
+   "fieldtype": "Tab Break",
+   "label": "Display"
+  },
+  {
+   "fieldname": "assets_module_section",
+   "fieldtype": "Section Break",
+   "label": "ERPNext Assets module"
+  },
+  {
+   "default": "1",
+   "description": "Adds Check Sheets, Service Records, Insurance, the reports and Asset Settings into the sections of ERPNext's Assets sidebar.",
+   "fieldname": "add_to_assets_sidebar",
+   "fieldtype": "Check",
+   "label": "Show in the Assets sidebar"
+  },
+  {
+   "fieldname": "col_break_display",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "description": "Adds Value Changes, Maintenance & Service, Insurance and the extra reports and setup links to the Assets landing page, so no sidebar section has to be opened.",
+   "fieldname": "add_to_assets_landing_page",
+   "fieldtype": "Check",
+   "label": "Show link cards on the Assets page"
+  },
+  {
+   "fieldname": "why_why_display_section",
+   "fieldtype": "Section Break",
+   "label": "Why-Why Analysis"
+  },
+  {
+   "default": "1",
+   "description": "The four step cards and the example shown at the top of the Why-Why Analysis tab on Check Sheets and Asset Repairs.",
+   "fieldname": "show_why_why_guide",
+   "fieldtype": "Check",
+   "label": "Show the step guide on the Why-Why tab"
+  },
+  {
+   "fieldname": "maintenance_tab",
+   "fieldtype": "Tab Break",
+   "label": "Maintenance"
+  },
+  {
+   "fieldname": "service_records_section",
+   "fieldtype": "Section Break",
+   "label": "Service Records",
+   "description": "Work orders for planned maintenance."
+  },
+  {
+   "default": "1",
+   "description": "When an Asset Maintenance task falls due, a Pending Service Record is created and assigned to the task owner. Submitting it completes the task and schedules the next one.",
+   "fieldname": "auto_create_service_records",
+   "fieldtype": "Check",
+   "label": "Create a Service Record for every maintenance due",
+   "show_description_on_click": 1
+  },
+  {
+   "fieldname": "repair_materials_section",
+   "fieldtype": "Section Break",
+   "label": "Asset Repair",
+   "description": "How a repair gets its parts."
+  },
+  {
+   "fieldname": "repair_material_requests",
+   "fieldtype": "Check",
+   "default": "0",
+   "label": "Use Material Requests for repair parts",
+   "description": "Turn this on if the workshop must ask for repair parts instead of taking them from the store. The repair gets a Materials list. From it you raise a Material Request to get parts from the store or to buy parts and services, and someone approves it first. The parts issued and the supplier bills make up the repair cost.\n\nLeave it off to use ERPNext's normal Asset Repair, where the Stock Items are taken from the store automatically when the repair is submitted.",
+   "show_description_on_click": 1
+  },
+  {
+   "fieldname": "service_materials_section",
+   "fieldtype": "Section Break",
+   "label": "Workshop Parts",
+   "description": "Used by Service Records, and by Asset Repairs when Material Requests are turned on above. Each company's workshop parts warehouse is set in the Defaults tab."
+  },
+  {
+   "fieldname": "col_break_requesting",
+   "fieldtype": "Column Break",
+   "label": "Asking for parts"
+  },
+  {
+   "fieldname": "maintenance_mr_status",
+   "fieldtype": "Select",
+   "label": "Create Material Requests as",
+   "options": "\nDraft\nSubmitted",
+   "default": "Draft",
+   "show_description_on_click": 1,
+   "description": "Draft: someone checks the request and submits it. Submitted: it goes straight to the store or to purchasing. If Material Request has an approval workflow, it always starts as a draft."
+  },
+  {
+   "fieldname": "col_break_service_materials",
+   "fieldtype": "Column Break",
+   "label": "Parts the workshop already holds"
+  },
+  {
+   "description": "Adds an Issue Used Materials button: the parts come out of stock with a Stock Entry, without a Material Request.",
+   "fieldname": "allow_direct_material_issue",
+   "fieldtype": "Check",
+   "label": "Allow recording parts already used",
+   "show_description_on_click": 1
+  },
+  {
+   "default": "Draft",
+   "depends_on": "allow_direct_material_issue",
+   "fieldname": "direct_issue_status",
+   "fieldtype": "Select",
+   "label": "Create that stock issue as",
+   "options": "\nDraft\nSubmitted",
+   "show_description_on_click": 1,
+   "description": "Draft: someone checks the Stock Entry and submits it. Submitted: stock goes down at once."
+  },
+  {
+   "fieldname": "insurance_tab",
+   "fieldtype": "Tab Break",
+   "label": "Insurance"
+  },
+  {
+   "fieldname": "premium_section",
+   "fieldtype": "Section Break",
+   "label": "Premium"
+  },
+  {
+   "description": "Non-stock service item used on every premium invoice, debit note, Material Request and Purchase Order. Turn on Deferred Expense on the item.",
+   "fieldname": "premium_item",
+   "fieldtype": "Link",
+   "label": "Premium Item",
+   "options": "Item"
+  },
+  {
+   "fieldname": "col_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "One invoice line per cost center, in proportion to the sum insured of the assets in each.",
+   "fieldname": "split_premium_by_cost_center",
+   "fieldtype": "Check",
+   "label": "Split premium by cost center"
+  },
+  {
+   "fieldname": "procurement_section",
+   "fieldtype": "Section Break",
+   "label": "Procurement"
+  },
+  {
+   "default": "Material Request",
+   "fieldname": "renewal_procurement",
+   "fieldtype": "Select",
+   "label": "Procure renewals through",
+   "options": "\nMaterial Request\nPurchase Order\nAsk"
+  },
+  {
+   "depends_on": "eval:doc.renewal_procurement=='Purchase Order'",
+   "fieldname": "endorsements_via_po",
+   "fieldtype": "Check",
+   "label": "Raise extra endorsement premium as a Purchase Order"
+  },
+  {
+   "fieldname": "col_break_procurement",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Draft",
+   "fieldname": "material_request_status",
+   "fieldtype": "Select",
+   "label": "Create Material Requests as",
+   "options": "\nDraft\nSubmitted",
+   "description": "For insurance renewal and endorsement requests. Maintenance has its own setting on the Maintenance tab.",
+   "show_description_on_click": 1
+  },
+  {
+   "default": "Draft",
+   "description": "An active approval workflow always starts the document as Draft.",
+   "fieldname": "purchase_order_status",
+   "fieldtype": "Select",
+   "label": "Create Purchase Orders as",
+   "options": "\nDraft\nSubmitted",
+   "show_description_on_click": 1
+  },
+  {
+   "fieldname": "alerts_section",
+   "fieldtype": "Section Break",
+   "label": "Renewals & Alerts"
+  },
+  {
+   "default": "60,30,7",
+   "description": "Comma separated, for example 60,30,7. Each reminder is sent once per policy.",
+   "fieldname": "renewal_alert_days",
+   "fieldtype": "Data",
+   "label": "Renewal reminders (days before expiry)"
+  },
+  {
+   "fieldname": "col_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "30",
+   "fieldname": "expiring_threshold_days",
+   "fieldtype": "Int",
+   "label": "Mark policies as Expiring within (days)"
+  },
+  {
+   "fieldname": "alert_recipients_section",
+   "fieldtype": "Section Break",
+   "label": "Who gets reminders"
+  },
+  {
+   "description": "Every enabled user with one of these roles gets the reminder by email and in their notifications.",
+   "fieldname": "renewal_reminder_roles",
+   "fieldtype": "Table MultiSelect",
+   "label": "Send renewal reminders to roles",
+   "options": "Asset Settings Role"
+  },
+  {
+   "default": "1",
+   "fieldname": "notify_policy_owner",
+   "fieldtype": "Check",
+   "label": "Also remind the policy owner"
+  },
+  {
+   "default": "1",
+   "description": "Uses the email on the broker's Supplier record or its primary contact.",
+   "fieldname": "notify_broker",
+   "fieldtype": "Check",
+   "label": "Also email the broker"
+  },
+  {
+   "fieldname": "col_break_alert_recipients",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Weekly",
+   "description": "Leave blank to stop the digest.",
+   "fieldname": "digest_frequency",
+   "fieldtype": "Select",
+   "label": "Insurance digest frequency",
+   "options": "\nDaily\nWeekly\nMonthly\nQuarterly\nHalf-yearly\nYearly\nCustom"
+  },
+  {
+   "depends_on": "eval:doc.digest_frequency=='Custom'",
+   "fieldname": "digest_every_days",
+   "fieldtype": "Int",
+   "label": "Send the digest every (days)",
+   "mandatory_depends_on": "eval:doc.digest_frequency=='Custom'",
+   "non_negative": 1
+  },
+  {
+   "description": "A list of uninsured assets and assets insured below their book value.",
+   "fieldname": "digest_roles",
+   "fieldtype": "Table MultiSelect",
+   "label": "Send the insurance digest to roles",
+   "options": "Asset Settings Role"
+  },
+  {
+   "depends_on": "digest_frequency",
+   "fieldname": "digest_last_sent",
+   "fieldtype": "Date",
+   "label": "Digest last sent",
+   "read_only": 1
+  },
+  {
+   "default": "Accounts Manager",
+   "description": "When an insured asset is scrapped or sold, a ToDo to endorse the policy is created for this role.",
+   "fieldname": "endorsement_todo_role",
+   "fieldtype": "Link",
+   "label": "Assign endorsement ToDos to role",
+   "options": "Role"
+  },
+  {
+   "fieldname": "claims_section",
+   "fieldtype": "Section Break",
+   "label": "Claims"
+  },
+  {
+   "default": "14",
+   "description": "Reminder sent when a claim stays Recorded or Under Assessment longer than this.",
+   "fieldname": "claim_followup_days",
+   "fieldtype": "Int",
+   "label": "Chase open claims after (days)"
+  },
+  {
+   "fieldname": "col_break_claims",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "claim_followup_roles",
+   "fieldtype": "Table MultiSelect",
+   "label": "Chase open claims with roles",
+   "options": "Asset Settings Role"
+  },
+  {
+   "default": "1",
+   "fieldname": "notify_claim_owner",
+   "fieldtype": "Check",
+   "label": "Also chase the claim owner"
+  },
+  {
+   "fieldname": "claim_docs_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "description": "Added to every new claim of the matching incident type. Mandatory documents must be attached before the claim can be recorded.",
+   "fieldname": "claim_required_documents",
+   "fieldtype": "Table",
+   "label": "Documents required to record a claim",
+   "options": "Insurance Claim Required Document"
+  },
+  {
+   "fieldname": "accounts_tab",
+   "fieldtype": "Tab Break",
+   "label": "Defaults"
+  },
+  {
+   "fieldname": "accounts_section",
+   "fieldtype": "Section Break",
+   "label": "Company Defaults"
+  },
+  {
+   "fieldname": "company_defaults",
+   "fieldtype": "Table",
+   "label": "Defaults per company",
+   "options": "Asset Company Default",
+   "description": "One row per company. Click a row to see all its fields. These are defaults: a claim can still use different accounts.",
+   "show_description_on_click": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-11-06 14:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Asset",
+ "name": "Asset Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts User",
+   "share": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Maintenance Manager",
+   "share": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}
