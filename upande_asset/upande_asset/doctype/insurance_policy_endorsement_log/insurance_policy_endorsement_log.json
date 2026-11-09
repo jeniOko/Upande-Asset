@@ -8,6 +8,7 @@
  "field_order": [
   "endorsement_no",
   "effective_date",
+  "requested_on",
   "endorsement_type",
   "asset",
   "old_sum_insured",
@@ -31,7 +32,8 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Endorsement No",
-   "read_only": 1
+   "read_only": 1,
+   "description": "The insurer's endorsement number, entered when the insurer confirms the change."
   },
   {
    "allow_on_submit": 1,
@@ -40,7 +42,8 @@
    "fieldtype": "Date",
    "in_list_view": 1,
    "label": "Effective Date",
-   "read_only": 1
+   "read_only": 1,
+   "description": "Requested date while Requested; the insurer's effective date once confirmed."
   },
   {
    "allow_on_submit": 1,
@@ -92,7 +95,8 @@
    "in_list_view": 1,
    "label": "Premium Adjustment",
    "options": "Company:company:default_currency",
-   "read_only": 1
+   "read_only": 1,
+   "description": "Estimated (pro-rata) while Requested; the insurer's figure once confirmed. Negative = refund."
   },
   {
    "allow_on_submit": 1,
@@ -120,8 +124,9 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
-   "options": "Active\nReversed",
-   "read_only": 1
+   "options": "Requested\nActive\nReversed\nWithdrawn",
+   "read_only": 1,
+   "description": "Requested: waiting for the insurer; the policy is not changed yet. Active: confirmed by the insurer and applied. Withdrawn: request dropped. Reversed: an applied endorsement undone."
   },
   {
    "allow_on_submit": 1,
@@ -161,6 +166,12 @@
    "fieldtype": "Date",
    "hidden": 1,
    "label": "Old Removed On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "requested_on",
+   "fieldtype": "Date",
+   "label": "Requested On",
    "read_only": 1
   }
  ],

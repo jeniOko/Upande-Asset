@@ -89,6 +89,8 @@ doctype_js = {
 # 	"methods": "upande_asset.utils.jinja_methods",
 # 	"filters": "upande_asset.utils.jinja_filters"
 # }
+# Print formats: {{ asset_qr_data_uri(doc.name) }} (Asset QR Label).
+jinja = {"methods": ["upande_asset.upande_asset.asset_qr.asset_qr_data_uri"]}
 
 # Installation
 # ------------
@@ -279,7 +281,13 @@ after_migrate = "upande_asset.upande_asset.install.after_migrate"
 # After adding these and deploying, disable those Server Scripts
 # in ERPNext > Server Script list.
 
+# ERPNext adds every Accounting Dimension to these doctypes (new dimensions too).
+accounting_dimension_doctypes = ["Insurance Claim", "Asset Service Record"]
+
 doc_events = {
+    "File": {
+        "on_trash": "upande_asset.upande_asset.doctype.insurance_claim.insurance_claim.file_on_trash",
+    },
     "Asset Repair": {
         "validate": [
             "upande_asset.upande_asset.rca.asset_repair_validate",
@@ -311,7 +319,10 @@ doc_events = {
         "on_update_after_submit": "upande_asset.upande_asset.insurance.asset.asset_on_update_after_submit",
     },
     "Purchase Invoice": {
-        "validate": "upande_asset.upande_asset.insurance.premium.purchase_invoice_validate",
+        "after_mapping": "upande_asset.upande_asset.dimensions.fill_header_from_rows",
+        "validate": ["upande_asset.upande_asset.insurance.premium.purchase_invoice_validate", "upande_asset.upande_asset.dimensions.fill_header_from_rows"],
+        "after_insert": "upande_asset.upande_asset.insurance.premium.link_procurement",
+        "on_trash": "upande_asset.upande_asset.insurance.premium.unlink_procurement",
         "on_submit": [
             "upande_asset.upande_asset.insurance.premium.purchase_invoice_on_submit",
             "upande_asset.upande_asset.doctype.asset_service_record.asset_service_record.purchase_invoice_on_submit",
@@ -324,17 +335,34 @@ doc_events = {
         ],
     },
     "Stock Entry": {
-        "validate": "upande_asset.upande_asset.repair_materials.stock_entry_validate",
-        "on_submit": ["upande_asset.upande_asset.doctype.asset_service_record.asset_service_record.stock_entry_on_change", "upande_asset.upande_asset.repair_materials.stock_entry_on_change"],
+        "after_mapping": "upande_asset.upande_asset.dimensions.fill_header_from_rows",
+        "validate": ["upande_asset.upande_asset.repair_materials.stock_entry_validate", "upande_asset.upande_asset.dimensions.fill_header_from_rows"],
+        "on_submit": ["upande_asset.upande_asset.doctype.asset_service_record.asset_service_record.stock_entry_on_change", "upande_asset.upande_asset.repair_materials.stock_entry_on_change", "upande_asset.upande_asset.materials.on_change"],
+        "on_update": "upande_asset.upande_asset.materials.stock_entry_on_update",
         "on_cancel": ["upande_asset.upande_asset.doctype.asset_service_record.asset_service_record.stock_entry_released", "upande_asset.upande_asset.repair_materials.stock_entry_released"],
         "on_trash": ["upande_asset.upande_asset.doctype.asset_service_record.asset_service_record.stock_entry_released", "upande_asset.upande_asset.repair_materials.stock_entry_released"],
     },
     "Material Request": {
-        "on_cancel": ["upande_asset.upande_asset.doctype.asset_service_record.asset_service_record.material_request_released", "upande_asset.upande_asset.repair_materials.material_request_released"],
-        "on_trash": ["upande_asset.upande_asset.doctype.asset_service_record.asset_service_record.material_request_released", "upande_asset.upande_asset.repair_materials.material_request_released"],
+        "validate": "upande_asset.upande_asset.insurance.premium.material_request_validate",
+        "on_update": ["upande_asset.upande_asset.insurance.premium.material_request_on_update", "upande_asset.upande_asset.materials.material_request_on_update"],
+        "after_insert": "upande_asset.upande_asset.insurance.premium.link_procurement",
+        "on_cancel": "upande_asset.upande_asset.materials.material_request_released",
+        "on_trash": ["upande_asset.upande_asset.materials.material_request_released", "upande_asset.upande_asset.insurance.premium.unlink_procurement"],
+    },
+    "Purchase Receipt": {
+        "after_mapping": "upande_asset.upande_asset.dimensions.fill_header_from_rows",
+        "validate": "upande_asset.upande_asset.dimensions.fill_header_from_rows",
+        "on_submit": "upande_asset.upande_asset.materials.purchase_receipt_on_submit",
+        "on_cancel": "upande_asset.upande_asset.materials.on_change",
     },
     "Purchase Order": {
-        "on_submit": "upande_asset.upande_asset.insurance.premium.purchase_order_on_submit",
+        "after_mapping": "upande_asset.upande_asset.dimensions.fill_header_from_rows",
+        "validate": "upande_asset.upande_asset.dimensions.fill_header_from_rows",
+        "after_insert": "upande_asset.upande_asset.insurance.premium.link_procurement",
+        "on_update": "upande_asset.upande_asset.materials.purchase_order_on_update",
+        "on_submit": ["upande_asset.upande_asset.insurance.premium.purchase_order_on_submit", "upande_asset.upande_asset.materials.on_change"],
+        "on_cancel": "upande_asset.upande_asset.materials.purchase_order_released",
+        "on_trash": ["upande_asset.upande_asset.insurance.premium.unlink_procurement", "upande_asset.upande_asset.materials.purchase_order_released"],
     },
     "Payment Entry": {
         "on_submit": "upande_asset.upande_asset.insurance.events.payment_entry_on_change",
@@ -342,7 +370,14 @@ doc_events = {
     },
     "Journal Entry": {
         # Scrapping books an "Asset Disposal" JE (status itself is set via db_set).
-        "on_submit": "upande_asset.upande_asset.insurance.asset.journal_entry_on_submit",
+        "on_submit": [
+            "upande_asset.upande_asset.insurance.asset.journal_entry_on_submit",
+            "upande_asset.upande_asset.insurance.premium.payment_on_change",
+        ],
+        "on_cancel": "upande_asset.upande_asset.insurance.premium.payment_on_change",
+        # Refund of returned premium on an endorsement.
+        "on_update": "upande_asset.upande_asset.insurance.endorsement.journal_entry_on_update",
+        "on_trash": "upande_asset.upande_asset.insurance.endorsement.journal_entry_on_trash",
     },
     "Sales Invoice": {
         "on_submit": "upande_asset.upande_asset.insurance.asset.sales_invoice_on_submit",
@@ -357,6 +392,7 @@ scheduler_events = {
     "daily": [
         "upande_asset.upande_asset.scheduled_tasks.check_missed_asset_checks",
         "upande_asset.upande_asset.insurance.tasks.daily",
+        "upande_asset.upande_asset.maintenance.daily",
     ],
 }
 

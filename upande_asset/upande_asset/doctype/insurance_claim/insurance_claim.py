@@ -59,8 +59,10 @@ class InsuranceClaim(Document):
 		self._compute_excess()
 		self._validate_amounts()
 		self._validate_transition()
+		self._validate_documents()
 
 	def before_update_after_submit(self):
+		self._validate_documents()
 		self._compute_outstanding()
 
 	def after_insert(self):
@@ -94,6 +96,11 @@ class InsuranceClaim(Document):
 		if self.status == "Approved":
 			je = self._make_claim_journal_entry()
 			self.db_set({"claim_journal_entry": je.name, "outstanding_amount": flt(self.amount_approved), "amount_received": 0})
+			if self.loss_treatment == "Total Loss":
+				# The asset is gone (e.g. an animal died): off cover from the incident date, no refund.
+				from upande_asset.upande_asset.insurance.endorsement import remove_for_claim
+
+				remove_for_claim(self)
 		else:
 			self.db_set("outstanding_amount", 0)
 
@@ -107,6 +114,9 @@ class InsuranceClaim(Document):
 			)
 
 	def on_cancel(self):
+		from upande_asset.upande_asset.insurance.endorsement import restore_for_claim
+
+		restore_for_claim(self)
 		for field in ("shortfall_journal_entry", "claim_journal_entry"):
 			name = self.get(field)
 			if name and frappe.db.get_value("Journal Entry", name, "docstatus") == 1:
@@ -137,7 +147,8 @@ class InsuranceClaim(Document):
 			return
 		if not a.insurance_required:
 			frappe.throw(_("Asset {0} is not flagged Insurance Required.").format(self.asset))
-		self.asset_name, self.asset_category, self.cost_center = a.asset_name, a.asset_category, a.cost_center
+		self.asset_name, self.asset_category = a.asset_name, a.asset_category
+		self._default_dimensions()
 		self.company = self.company or a.company
 		if a.company != self.company:
 			frappe.throw(_("Asset {0} belongs to company {1}.").format(self.asset, a.company))
@@ -193,6 +204,16 @@ class InsuranceClaim(Document):
 			if r:
 				self.amount_claimed = flt(r.total_repair_cost) or flt(r.repair_cost)
 
+	def _default_dimensions(self):
+		from upande_asset.upande_asset.dimensions import default_from_asset
+
+		default_from_asset(self)
+
+	def dimensions(self, target_doctype=None):
+		from upande_asset.upande_asset.dimensions import get_dimensions
+
+		return get_dimensions(self, target_doctype)
+
 	def _seed_documents(self):
 		if not self.incident_type:
 			return
@@ -243,6 +264,31 @@ class InsuranceClaim(Document):
 		if self.status == "Under Assessment" and prev == "Recorded" and not flt(self.amount_approved):
 			self.amount_approved = flt(self.net_claimable)
 
+	def _validate_documents(self):
+		"""Once a claim is recorded its mandatory documents are locked in: a mandatory row
+		cannot be removed, renamed or made optional, and its attachment cannot be cleared."""
+		if self.status == "Draft":
+			return
+		before = self.get_doc_before_save()
+		if before and before.status != "Draft":
+			rows = {d.name: d for d in self.documents}
+			for old in before.documents:
+				if not old.mandatory:
+					continue
+				row = rows.get(old.name)
+				if not row:
+					frappe.throw(_("Mandatory document {0} cannot be removed from a recorded claim.").format(frappe.bold(old.document_name)),
+						title=_("Documents Locked"))
+				if not row.mandatory or row.document_name != old.document_name:
+					frappe.throw(_("Mandatory document {0} cannot be renamed or made optional on a recorded claim.").format(
+						frappe.bold(old.document_name)), title=_("Documents Locked"))
+		missing = [d.document_name for d in self.documents if d.mandatory and not d.attachment]
+		if missing:
+			frappe.throw(
+				_("A recorded claim must keep its mandatory documents attached:<br>{0}").format("<br>".join(f"• {m}" for m in missing)),
+				title=_("Documents Missing"),
+			)
+
 	def _compute_outstanding(self):
 		if self.status in ("Rejected", "Cancelled"):
 			self.outstanding_amount = 0
@@ -285,7 +331,7 @@ class InsuranceClaim(Document):
 		credit_account = self.credit_account or self._default_credit_account()
 		if not recoverable or not credit_account:
 			frappe.throw(_("Set the Claims Recoverable and Credit accounts on the claim's Accounting tab (or in Asset Settings)."))
-		cc = self.cost_center or frappe.get_cached_value("Company", self.company, "cost_center")
+		dims = self.dimensions("Journal Entry Account")
 		je = frappe.new_doc("Journal Entry")
 		je.update({
 			"voucher_type": "Journal Entry",
@@ -302,12 +348,12 @@ class InsuranceClaim(Document):
 			"party_type": "Supplier",
 			"party": self.insurer,
 			"debit_in_account_currency": flt(self.amount_approved),
-			"cost_center": cc,
+			**dims,
 		})
 		je.append("accounts", {
 			"account": credit_account,
 			"credit_in_account_currency": flt(self.amount_approved),
-			"cost_center": cc,
+			**dims,
 		})
 		je.flags.ignore_permissions = True
 		je.insert()
@@ -369,7 +415,7 @@ def make_payment_entry(claim):
 		"source_exchange_rate": 1,
 		"target_exchange_rate": 1,
 		"insurance_claim": doc.name,
-		"cost_center": doc.cost_center,
+		**doc.dimensions("Payment Entry"),
 		"remarks": _("Insurance claim settlement {0} – {1}").format(doc.name, doc.asset),
 	})
 	# Posted on-account (no reference row): ERPNext treats a debit-balance JE on a
@@ -393,7 +439,7 @@ def close_with_shortfall(claim, remarks=None):
 	if not recoverable or not shortfall_account:
 		frappe.throw(_("Set the Shortfall Account on the claim's Accounting tab (or in Asset Settings)."))
 	amount = flt(doc.outstanding_amount)
-	cc = doc.cost_center or frappe.get_cached_value("Company", doc.company, "cost_center")
+	dims = doc.dimensions("Journal Entry Account")
 	je = frappe.new_doc("Journal Entry")
 	je.update({
 		"voucher_type": "Journal Entry",
@@ -402,13 +448,13 @@ def close_with_shortfall(claim, remarks=None):
 		"insurance_claim": doc.name,
 		"user_remark": _("Insurance claim {0} closed with shortfall. {1}").format(doc.name, remarks or ""),
 	})
-	je.append("accounts", {"account": shortfall_account, "debit_in_account_currency": amount, "cost_center": cc})
+	je.append("accounts", {"account": shortfall_account, "debit_in_account_currency": amount, **dims})
 	cr = {
 		"account": recoverable,
 		"party_type": "Supplier",
 		"party": doc.insurer,
 		"credit_in_account_currency": amount,
-		"cost_center": cc,
+		**dims,
 	}
 	# On-account like the receipts: ERPNext only allows a JE reference on the debit side of a Payable.
 	je.append("accounts", cr)
@@ -422,6 +468,19 @@ def close_with_shortfall(claim, remarks=None):
 		"status": "Closed",
 	})
 	return je.name
+
+
+def file_on_trash(doc, method=None):
+	"""Deleting the File behind a mandatory document of a recorded claim would leave a dead link."""
+	if doc.attached_to_doctype != "Insurance Claim" or not doc.attached_to_name or not doc.file_url:
+		return
+	status = frappe.db.get_value("Insurance Claim", doc.attached_to_name, "status")
+	if not status or status in ("Draft", "Cancelled"):
+		return
+	if frappe.db.exists("Insurance Claim Document", {"parenttype": "Insurance Claim", "parent": doc.attached_to_name,
+			"mandatory": 1, "attachment": doc.file_url}):
+		frappe.throw(_("{0} is a mandatory document of recorded claim {1} and cannot be deleted.").format(
+			frappe.bold(doc.file_name or doc.file_url), doc.attached_to_name), title=_("Documents Locked"))
 
 
 @frappe.whitelist()

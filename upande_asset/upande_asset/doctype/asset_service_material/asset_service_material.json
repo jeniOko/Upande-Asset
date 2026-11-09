@@ -13,7 +13,10 @@
   "col_break_1",
   "warehouse",
   "actual_qty",
-  "estimated_rate",
+  "material_status",
+  "issued_qty",
+  "purchase_request",
+  "purchase_order",
   "material_request",
   "stock_entry"
  ],
@@ -25,7 +28,8 @@
    "in_list_view": 1,
    "label": "Item",
    "options": "Item",
-   "reqd": 1
+   "reqd": 1,
+   "description": "A stock item (part or consumable), an asset item (a component that builds or upgrades the asset) or a service."
   },
   {
    "fetch_from": "item_code.item_name",
@@ -68,7 +72,7 @@
   },
   {
    "columns": 2,
-   "description": "Store to issue from (Material Issue) or to receive into (Purchase of stock items).",
+   "description": "Store to issue from, or to receive a purchase / transfer into.",
    "fieldname": "warehouse",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -78,7 +82,7 @@
   {
    "allow_on_submit": 1,
    "columns": 1,
-   "description": "Stock in the selected warehouse now.",
+   "description": "Stock in the selected warehouse now (refreshed whenever the form opens).",
    "fieldname": "actual_qty",
    "fieldtype": "Float",
    "in_list_view": 1,
@@ -88,25 +92,16 @@
    "show_description_on_click": 1
   },
   {
-   "columns": 1,
-   "description": "A guide for the Material Request only. Costs on the record come from the actual stock issue and invoices.",
-   "fieldname": "estimated_rate",
-   "fieldtype": "Currency",
-   "in_list_view": 1,
-   "label": "Estimated Rate",
-   "options": "Company:company:default_currency",
-   "show_description_on_click": 1
-  },
-  {
    "allow_on_submit": 1,
    "columns": 2,
    "fieldname": "material_request",
    "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "Material Request",
+   "in_list_view": 0,
+   "label": "Issue Request",
    "no_copy": 1,
    "options": "Material Request",
-   "read_only": 1
+   "read_only": 1,
+   "description": "Material Request (Material Issue) asking stores to issue this."
   },
   {
    "allow_on_submit": 1,
@@ -116,6 +111,47 @@
    "no_copy": 1,
    "options": "Stock Entry",
    "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "columns": 2,
+   "fieldname": "material_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "no_copy": 1,
+   "read_only": 1,
+   "options": "\nIn Stock\nOut of Stock\nNot Requested\nPurchase Requested\nTransfer Requested\nOrdered\nTo Issue\nReceived, Out of Stock\nIssue Requested\nPartly Issued\nIssued",
+   "description": "In Stock: request it from stores. Out of Stock: request a purchase or transfer. To Issue: received, now issue it.",
+   "show_description_on_click": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "issued_qty",
+   "fieldtype": "Float",
+   "label": "Issued Qty",
+   "no_copy": 1,
+   "read_only": 1,
+   "description": "In stock UOM, from submitted issues."
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "purchase_request",
+   "fieldtype": "Link",
+   "label": "Purchase / Transfer Request",
+   "no_copy": 1,
+   "options": "Material Request",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "purchase_order",
+   "fieldtype": "Link",
+   "label": "Purchase Order",
+   "no_copy": 1,
+   "options": "Purchase Order",
+   "read_only": 1,
+   "description": "Purchase Order raised straight from this row (without a Material Request)."
   }
  ],
  "index_web_pages_for_search": 0,

@@ -70,6 +70,11 @@ class InsurancePolicy(Document):
 	def after_insert(self):
 		if self.renewed_from:
 			write_renewal_links(self.renewed_from)
+			refresh_status(self.renewed_from)  # renewal raised: no longer just "Expiring"
+
+	def after_delete(self):
+		if self.renewed_from:
+			refresh_status(self.renewed_from)
 
 	def on_trash(self):
 		# The MR / PO raised for this (draft) policy points back at it on its item
@@ -89,11 +94,10 @@ class InsurancePolicy(Document):
 		self.db_set("status", compute_status(self), update_modified=False)
 		sync_policy_assets(self)
 		if self.renewed_from:
-			frappe.db.set_value(
-				"Insurance Policy", self.renewed_from, {"renewed_to": self.name, "status": "Renewed"}
-			)
+			frappe.db.set_value("Insurance Policy", self.renewed_from, "renewed_to", self.name)
 			write_renewal_links(self.renewed_from)
 			old = frappe.get_doc("Insurance Policy", self.renewed_from)
+			old.db_set("status", compute_status(old), update_modified=False)
 			sync_policy_assets(old)
 
 	def on_update_after_submit(self):
@@ -122,8 +126,8 @@ class InsurancePolicy(Document):
 			old = frappe.get_doc("Insurance Policy", self.renewed_from)
 			if old.renewed_to == self.name:
 				old.db_set("renewed_to", None)
-				old.db_set("status", compute_status(old))
-				sync_policy_assets(old)
+			old.db_set("status", compute_status(old))
+			sync_policy_assets(old)
 			write_renewal_links(self.renewed_from, exclude=self.name)
 
 	# ── helpers ────────────────────────────────────────────────────────────
@@ -147,7 +151,6 @@ class InsurancePolicy(Document):
 			frappe.throw(_("Remove the insured assets, or set Insurance For to Assets."))
 		if self.is_opening != "Yes":
 			self.opening_journal_entry = None
-			self.prepaid_balance_at_go_live = 0
 
 	def _set_party_details(self):
 		"""Insurer address / contact, company billing address and terms – the same
@@ -341,19 +344,79 @@ def write_renewal_links(name, exclude=None):
 		}).db_insert()
 
 
+def premium_complete(doc):
+	"""Has this policy's premium been settled enough to count as renewed? Asset Settings →
+	"Renewal is complete when" decides: the premium invoice submitted, or fully paid.
+	Opening policies and policies without a premium need no invoice."""
+	if doc.get("is_opening") in (1, "1", "Yes") or not flt(doc.get("total_premium")):
+		return True
+	pi = doc.get("purchase_invoice")
+	if not pi:
+		return False
+	inv = frappe.db.get_value("Purchase Invoice", pi, ["docstatus", "outstanding_amount"], as_dict=True)
+	if not inv or inv.docstatus != 1:
+		return False
+	from upande_asset.upande_asset.insurance.utils import get_settings
+
+	if (get_settings().renewal_complete_on or RENEWAL_ON_SUBMIT) == RENEWAL_ON_PAID:
+		return flt(inv.outstanding_amount) <= 0
+	return True
+
+
+RENEWAL_ON_SUBMIT = "Premium Invoice Submitted"
+RENEWAL_ON_PAID = "Premium Invoice Paid"
+_RENEWAL_FIELDS = ["name", "docstatus", "purchase_invoice", "is_opening", "total_premium"]
+
+
+def renewal_of(name):
+	"""The renewal raised from policy `name` (a submitted one first), or None."""
+	rows = frappe.get_all("Insurance Policy", filters={"renewed_from": name, "docstatus": ["<", 2]},
+		fields=_RENEWAL_FIELDS, order_by="docstatus desc, creation desc", limit=1)
+	return rows[0] if rows else None
+
+
 def compute_status(doc):
+	"""Draft → Active → Expiring → Expired, with the renewal states in between:
+
+	- the old policy is *Renewal In Progress* once a renewal is raised (or submitted but its
+	  premium not yet settled), and *Renewed* only once the renewal is complete;
+	- a submitted renewal is *Awaiting Premium* until its premium is settled."""
 	if doc.docstatus == 0:
 		return "Draft"
 	if doc.docstatus == 2 or doc.status == "Cancelled":
 		return "Cancelled"
-	if doc.renewed_to and frappe.db.get_value("Insurance Policy", doc.renewed_to, "docstatus") == 1:
-		return "Renewed"
+	renewal = renewal_of(doc.name) if doc.get("name") else None
+	if renewal and renewal.docstatus == 1:
+		return "Renewed" if premium_complete(renewal) else "Renewal In Progress"
 	end = getdate(doc.end_date)
 	if getdate(today()) > end:
-		return "Expired"
+		return "Expired"  # a renewal still in draft does not keep the old cover alive
+	if doc.get("renewed_from") and not premium_complete(doc):
+		return "Awaiting Premium"
+	if renewal:
+		return "Renewal In Progress"
 	if date_diff(end, today()) <= get_expiring_threshold():
 		return "Expiring"
 	return "Active"
+
+
+def refresh_status(name):
+	"""Recompute a submitted policy's status (and mirror it on its assets when it changes)."""
+	if not name or not frappe.db.exists("Insurance Policy", name):
+		return
+	doc = frappe.get_doc("Insurance Policy", name)
+	if doc.docstatus != 1:
+		return
+	new = compute_status(doc)
+	if new != doc.status:
+		doc.db_set("status", new, update_modified=False)
+		sync_policy_assets(doc)
+
+
+def refresh_renewal_chain(name):
+	"""A policy and the one it renews: both statuses depend on the renewal's progress."""
+	refresh_status(name)
+	refresh_status(frappe.db.get_value("Insurance Policy", name, "renewed_from"))
 
 
 # ── Whitelisted actions ───────────────────────────────────────────────────────
@@ -370,7 +433,7 @@ def make_premium_invoice(policy):
 	frappe.only_for(ACCOUNTS_WRITE_ROLES)
 	from upande_asset.upande_asset.insurance.premium import make_premium_invoice as _make
 
-	return _make(_get_policy_for_action(policy)).name
+	return _make(_get_policy_for_action(policy)).as_dict()
 
 
 @frappe.whitelist()
@@ -383,10 +446,31 @@ def get_endorsement_preview(policy, action, payload):
 
 @frappe.whitelist()
 def endorse(policy, action, payload):
+	"""Endorsement request. With the insurer's Endorsement No already in hand, it is confirmed at once."""
 	frappe.only_for(ACCOUNTS_MANAGER_ROLES)
-	from upande_asset.upande_asset.insurance.endorsement import endorse as _endorse
+	from upande_asset.upande_asset.insurance import endorsement
 
-	return _endorse(_get_policy_for_action(policy), action, frappe.parse_json(payload))
+	payload = frappe.parse_json(payload)
+	doc = _get_policy_for_action(policy)
+	if (payload.get("endorsement_no") or "").strip():
+		return endorsement.endorse(doc, action, payload)
+	return endorsement.request(doc, action, payload)
+
+
+@frappe.whitelist()
+def confirm_endorsement(policy, endorsement_group, payload):
+	frappe.only_for(ACCOUNTS_MANAGER_ROLES)
+	from upande_asset.upande_asset.insurance.endorsement import confirm
+
+	return confirm(_get_policy_for_action(policy), endorsement_group, frappe.parse_json(payload))
+
+
+@frappe.whitelist()
+def withdraw_endorsement(policy, endorsement_group, reason=None):
+	frappe.only_for(ACCOUNTS_MANAGER_ROLES)
+	from upande_asset.upande_asset.insurance.endorsement import withdraw
+
+	return withdraw(_get_policy_for_action(policy), endorsement_group, reason)
 
 
 @frappe.whitelist()
@@ -398,11 +482,25 @@ def reverse_endorsement(policy, endorsement_group):
 
 
 @frappe.whitelist()
+def make_endorsement_document(policy, endorsement_group, procurement=None):
+	"""Unsaved MR / PO (extra premium) or Journal Entry (returned premium) for an endorsement."""
+	frappe.only_for(ACCOUNTS_MANAGER_ROLES)
+	from upande_asset.upande_asset.insurance.premium import make_endorsement_document as _make
+
+	return _make(_get_policy_for_action(policy), endorsement_group, procurement).as_dict()
+
+
+@frappe.whitelist()
 def raise_renewal_request(policy, procurement=None):
 	frappe.only_for(ACCOUNTS_WRITE_ROLES)
 	from upande_asset.upande_asset.insurance.renewal import raise_renewal_request as _raise
 
-	return _raise(_get_policy_for_action(policy), procurement)
+	return _as_dict(_raise(_get_policy_for_action(policy), procurement))
+
+
+def _as_dict(result):
+	result["doc"] = result["doc"].as_dict()
+	return result
 
 
 @frappe.whitelist()
@@ -410,28 +508,42 @@ def raise_purchase_request(policy, procurement=None):
 	frappe.only_for(ACCOUNTS_WRITE_ROLES)
 	from upande_asset.upande_asset.insurance.renewal import raise_purchase_request as _raise
 
-	return _raise(_get_policy_for_action(policy), procurement)
-
-
-@frappe.whitelist()
-def generate_release_schedule(policy):
-	frappe.only_for(ACCOUNTS_MANAGER_ROLES)
-	from upande_asset.upande_asset.insurance.release_schedule import generate
-
-	return generate(_get_policy_for_action(policy))
+	return _as_dict(_raise(_get_policy_for_action(policy), procurement))
 
 
 @frappe.whitelist()
 def get_policy_context(policy):
 	"""Small payload the form uses to decide which buttons to show."""
 	doc = _get_policy_for_action(policy, "read")
-	from upande_asset.upande_asset.insurance.premium import draft_premium_invoice, has_open_procurement
+	from upande_asset.upande_asset.insurance.premium import (
+		draft_premium_invoice,
+		endorsement_has_document,
+		has_open_procurement,
+	)
 	from upande_asset.upande_asset.insurance.utils import get_settings
 
 	draft_renewal = frappe.db.get_value("Insurance Policy", {"renewed_from": doc.name, "docstatus": 0}, "name")
 	pi_docstatus = frappe.db.get_value("Purchase Invoice", doc.purchase_invoice, "docstatus") if doc.purchase_invoice else None
 	draft_premium_pi = draft_premium_invoice(doc)
+	# Endorsements by group: requests waiting for the insurer, and premium documents not raised yet
+	# (extra premium: from the request on; returned premium: once confirmed).
+	groups = {}
+	for e in doc.get("endorsements") or []:
+		if e.status in ("Requested", "Active") and e.endorsement_group:
+			g = groups.setdefault(e.endorsement_group, {"group": e.endorsement_group, "status": e.status, "total": 0, "assets": [],
+				"type": e.endorsement_type, "effective_date": e.effective_date, "endorsement_no": e.endorsement_no})
+			g["total"] = flt(g["total"] + flt(e.premium_adjustment), 2)
+			if e.asset:
+				g["assets"].append(e.asset)
+	for g in groups.values():
+		g["label"] = " – ".join(filter(None, [g["endorsement_no"] or _("Request"), _(g["type"]), ", ".join(g["assets"])]))
+	unraised = [
+		g for g in groups.values()
+		if g["total"] and (g["total"] > 0 or g["status"] == "Active") and not endorsement_has_document(doc, g["group"])
+	] if doc.docstatus == 1 else []
 	return {
+		"endorsements_without_document": unraised,
+		"pending_endorsements": [g for g in groups.values() if g["status"] == "Requested"],
 		"open_procurement": has_open_procurement(doc),
 		"draft_renewal": draft_renewal,
 		"premium_invoiced": bool(pi_docstatus in (0, 1)) or bool(draft_premium_pi),

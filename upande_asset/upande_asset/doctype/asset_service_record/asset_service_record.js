@@ -5,6 +5,7 @@ frappe.ui.form.on("Asset Service Record", {
 		// "Complete" is the submit action here, so drop Frappe's "Submit this document to confirm" banner.
 		frm.show_submit_message = () => {};
 		frm.set_query("asset", () => ({ filters: { docstatus: 1 } }));
+		frm.set_query("cost_center", (doc) => ({ filters: { company: doc.company, is_group: 0 } }));
 		frm.set_query("asset_maintenance_log", "tasks", (doc) => ({
 			filters: { docstatus: 0, maintenance_status: ["in", ["Planned", "Overdue"]], ...(doc.asset ? { asset_name: doc.asset } : {}) },
 		}));
@@ -16,6 +17,14 @@ frappe.ui.form.on("Asset Service Record", {
 			query: `${ASR_API}.get_expense_accounts`,
 			filters: { purchase_invoice: locals[cdt][cdn].purchase_invoice },
 		}));
+	},
+
+	onload(frm) {
+		erpnext.accounts.dimensions.setup_dimension_filters(frm, frm.doctype);
+	},
+
+	company(frm) {
+		erpnext.accounts.dimensions.update_dimension(frm, frm.doctype);
 	},
 
 	onload_post_render(frm) {
@@ -41,9 +50,10 @@ frappe.ui.form.on("Asset Service Record", {
 			if (!d) return;
 			if (!frm.doc.service_by && d.default_service_by) frm.set_value("service_by", d.default_service_by);
 			const external = (frm.doc.service_by || d.default_service_by) === "External";
+			const materials_on = !!(frm.doc.__onload || {}).materials_enabled;  // the table may be off
 			if (external && !frm.doc.supplier && d.default_supplier) frm.set_value("supplier", d.default_supplier);
-			if (external && d.default_service_item && !(frm.doc.materials || []).some((r) => r.item_code === d.default_service_item)) {
-				const row = frm.add_child("materials", { item_code: d.default_service_item, qty: 1, estimated_rate: d.default_service_rate });
+			if (materials_on && external && d.default_service_item && !(frm.doc.materials || []).some((r) => r.item_code === d.default_service_item)) {
+				const row = frm.add_child("materials", { item_code: d.default_service_item, qty: 1 });
 				frm.refresh_field("materials");
 				frappe.model.trigger("item_code", d.default_service_item, row);
 			}
@@ -52,13 +62,29 @@ frappe.ui.form.on("Asset Service Record", {
 
 	refresh(frm) {
 		apply_service_by(frm);
-		upande_asset.lock_requested_rows(frm, "materials");
-		frm.set_indicator_formatter("item_code", (row) => {
-			if (row.stock_entry || row.material_request) return "blue";  // already requested / issued
-			if (!row.is_stock_item || !row.warehouse) return "gray";  // services: no stock to check
-			return flt(row.actual_qty) >= flt(row.qty) ? "green" : "orange";
-		});
-		frm.set_query("item_code", "materials", () => ({ filters: { disabled: 0, has_variants: 0, is_fixed_asset: 0 } }));
+		// Materials: requests and issues by stock availability (public/js/materials.js). Hidden when
+		// Asset Settings → Use Material Requests is off; records that already have rows keep showing them.
+		const materials_on = !!(frm.doc.__onload || {}).materials_enabled;
+		const has_rows = (frm.doc.materials || []).length > 0;
+		frm.toggle_display(["sec_materials", "materials", "sec_materials_total", "materials_cost"], materials_on || has_rows);
+		// Off: parts are recorded as on ERPNext's Asset Repair (Consumed Stock Items, issued on Complete).
+		const has_stock_items = (frm.doc.stock_items || []).length > 0;
+		frm.toggle_display(["sec_stock_items", "stock_items", "sec_stock_items_total", "consumed_items_cost", "consumption_stock_entry"],
+			!materials_on || has_stock_items);
+		frm.set_query("item_code", "stock_items", () => ({ filters: { is_stock_item: 1, disabled: 0, has_variants: 0 } }));
+		frm.set_query("warehouse", "stock_items", () => ({ filters: { company: frm.doc.company, is_group: 0 } }));
+		frm.set_df_property("materials", "read_only", materials_on ? 0 : 1);
+		if (!materials_on && has_rows) upande_asset.lock_requested_rows(frm, "materials");
+		if (materials_on && frm.doc.service_by) {
+			upande_asset.materials.setup(frm, {
+				table: "materials",
+				allow_submitted: true,
+				allow_direct_issue: !!(frm.doc.__onload || {}).allow_direct_material_issue,
+				...((frm.doc.__onload || {}).materials_options || {}),
+				purchase_label: frm.doc.service_by === "External" ? __("Request Service Purchase") : null,
+			});
+		}
+		frm.set_query("item_code", "materials", () => ({ filters: { disabled: 0, has_variants: 0 } }));  // stock, asset and service items
 		frm.set_query("warehouse", "materials", () => ({ filters: { company: frm.doc.company, is_group: 0 } }));
 		if (frm.is_new()) return;
 
@@ -80,22 +106,6 @@ frappe.ui.form.on("Asset Service Record", {
 			}
 		}
 
-		// Material Requests (or a direct issue) from the Materials & Services rows.
-		if (frm.doc.docstatus < 2 && frm.doc.service_by) {
-			const open_rows = (frm.doc.materials || []).filter((r) => !r.material_request && !r.stock_entry);
-			if (open_rows.length && (frm.doc.__onload || {}).allow_direct_material_issue) {
-				frm.add_custom_button(__("Issue Used Materials"), () => issue_used(frm, open_rows), __("Material Request"));
-			}
-			if (open_rows.length) {
-				const purposes = frm.doc.service_by === "External" ? ["Purchase"] : ["Material Issue", "Purchase"];
-				purposes.forEach((purpose) => {
-					const label = purpose === "Purchase"
-						? (frm.doc.service_by === "External" ? __("Request Service Purchase") : __("Request Purchase"))
-						: __("Request from Stores");
-					frm.add_custom_button(label, () => make_request(frm, purpose, open_rows), __("Material Request"));
-				});
-			}
-		}
 		const open_tasks = (frm.doc.tasks || []).filter((t) => t.maintenance_task);
 		if (open_tasks.length && frm.doc.docstatus === 0) {
 			frm.dashboard.set_headline(open_tasks.length === 1
@@ -143,16 +153,54 @@ frappe.ui.form.on("Asset Repair Purchase Invoice", {
 
 function refresh_total(frm) {
 	const services = (frm.doc.invoices || []).reduce((s, r) => s + flt(r.repair_cost), 0);
+	const consumed = (frm.doc.stock_items || []).reduce((s, r) => s + flt(r.total_value), 0);
 	frm.set_value("services_cost", services);
-	frm.set_value("total_service_cost", services + flt(frm.doc.materials_cost));
+	frm.set_value("consumed_items_cost", consumed);
+	frm.set_value("total_service_cost", services + flt(frm.doc.materials_cost) + consumed);
 }
+
+// Consumed Stock Items: ERPNext's own child table; its events live in Asset Repair's form script,
+// so the Service Record fetches the valuation rate and line total itself.
+function consumed_item_rate(frm, cdt, cdn) {
+	if (frm.doctype !== "Asset Service Record") return;
+	const row = locals[cdt][cdn];
+	if (!row.item_code || !row.warehouse) return;
+	frappe.call({
+		method: "erpnext.stock.utils.get_incoming_rate",
+		args: { args: { item_code: row.item_code, warehouse: row.warehouse, qty: flt(row.consumed_quantity) || 1, company: frm.doc.company,
+			posting_date: frappe.datetime.get_today(), posting_time: frappe.datetime.now_time() } },
+		callback: (r) => frappe.model.set_value(cdt, cdn, "valuation_rate", flt(r.message)),
+	});
+}
+
+function consumed_item_total(frm, cdt, cdn) {
+	if (frm.doctype !== "Asset Service Record") return;
+	const row = locals[cdt][cdn];
+	frappe.model.set_value(cdt, cdn, "total_value", flt(row.consumed_quantity) * flt(row.valuation_rate));
+	refresh_total(frm);
+}
+
+frappe.ui.form.on("Asset Repair Consumed Item", {
+	item_code: consumed_item_rate,
+	warehouse: consumed_item_rate,
+	consumed_quantity: consumed_item_total,
+	valuation_rate: consumed_item_total,
+});
+
+frappe.ui.form.on("Asset Service Record", {
+	stock_items_add(frm, cdt, cdn) {
+		const wh = (frm.doc.__onload || {}).service_materials_warehouse;
+		if (wh) frappe.model.set_value(cdt, cdn, "warehouse", wh);
+	},
+	stock_items_remove: (frm) => refresh_total(frm),
+});
 
 function apply_service_by(frm) {
 	const external = frm.doc.service_by === "External";
 	frm.set_df_property("performed_by", "label", external ? __("Supplier's Technician") : __("Technician"));
 	frm.set_df_property("sec_materials", "description", external
 		? __("The service to buy (e.g. the supplier's service item) and any parts. Use Material Request → Request Service Purchase to raise the purchase request.")
-		: __("Parts and consumables this job needs. Use Material Request → Request from Stores to issue them, or Request Purchase to buy them."));
+		: __("Parts and consumables this job needs. In stock: Material Request → Request from Stores. Out of stock: Request Purchase or Request Transfer, then issue them once received."));
 	frm.fields_dict.invoices && frm.set_df_property("invoices", "label", external ? __("Supplier Invoices") : __("Service Invoices"));
 }
 
@@ -160,47 +208,3 @@ function change_status(frm, status) {
 	const run = () => frappe.xcall(`${ASR_API}.set_status`, { service_record: frm.doc.name, status }).then(() => frm.reload_doc());
 	frm.is_dirty() ? frm.save().then(run) : run();
 }
-
-function make_request(frm, purpose, rows) {
-	const go = () => frappe.xcall(`${ASR_API}.make_material_request`, {
-		service_record: frm.doc.name, purpose, rows: rows.map((r) => r.name),
-	}).then((name) => {
-		frappe.show_alert({ message: __("Material Request {0} created", [name]), indicator: "green" });
-		frm.reload_doc();
-		frappe.set_route("Form", "Material Request", name);
-	});
-	frm.is_dirty() ? frm.save().then(go) : go();
-}
-
-function issue_used(frm, rows) {
-	const go = () => frappe.confirm(
-		__("Record the parts already used from the workshop store as a Material Issue Stock Entry (no Material Request)?"),
-		() => frappe.xcall(`${ASR_API}.make_material_issue`, { service_record: frm.doc.name, rows: rows.map((r) => r.name) })
-			.then((name) => {
-				frappe.show_alert({ message: __("Stock Entry {0} created", [name]), indicator: "green" });
-				frm.reload_doc();
-				frappe.set_route("Form", "Stock Entry", name);
-			}));
-	frm.is_dirty() ? frm.save().then(go) : go();
-}
-
-function refresh_actual_qty(frm, cdt, cdn) {
-	if (frm.doctype !== "Asset Service Record") return; // the same table is also used on Asset Repair
-	const row = locals[cdt][cdn];
-	if (!row.item_code || !row.warehouse) {
-		frappe.model.set_value(cdt, cdn, "actual_qty", 0);
-		return;
-	}
-	frappe.xcall("erpnext.stock.get_item_details.get_bin_details", {
-		item_code: row.item_code, warehouse: row.warehouse, company: frm.doc.company,
-	}).then((bin) => {
-		frappe.model.set_value(cdt, cdn, "actual_qty", flt((bin || {}).actual_qty));
-		frm.refresh_field("materials");
-	});
-}
-
-frappe.ui.form.on("Asset Service Material", {
-	item_code: refresh_actual_qty,
-	warehouse: refresh_actual_qty,
-	qty: (frm) => frm.doctype === "Asset Service Record" && frm.refresh_field("materials"),
-});

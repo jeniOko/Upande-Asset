@@ -1,6 +1,7 @@
 # Copyright (c) 2026, jeniffer@upande.com and contributors
 # For license information, please see license.txt
-"""Renewal requests (draft renewal policy + Material Request / Purchase Order)."""
+"""Renewal requests: a draft renewal policy, plus an unsaved Material Request / Purchase
+Order the user reviews and saves (so the site's own mandatory fields and workflows apply)."""
 
 import frappe
 from frappe import _
@@ -10,6 +11,7 @@ from upande_asset.upande_asset.insurance.premium import (
 	has_open_procurement,
 	make_material_request,
 	make_purchase_order,
+	resolve_procurement,
 )
 from upande_asset.upande_asset.insurance.utils import get_asset_book_value, get_settings, next_period
 
@@ -18,15 +20,6 @@ COPY_FIELDS = (
 	"insurance_for", "cover_description", "cost_center",
 	"excess_type", "excess_value", "minimum_excess", "basic_premium", "levies",
 )
-
-
-def _resolve_procurement(procurement):
-	mode = procurement or get_settings().renewal_procurement or "Material Request"
-	if mode == "Ask":
-		frappe.throw(_("Choose Material Request or Purchase Order."))
-	if mode not in ("Material Request", "Purchase Order"):
-		frappe.throw(_("Invalid procurement type {0}.").format(mode))
-	return mode
 
 
 def _create_procurement(policy, mode, rate, schedule_date):
@@ -43,24 +36,20 @@ def _create_procurement(policy, mode, rate, schedule_date):
 		scope,
 	)
 	if mode == "Purchase Order":
-		doc = make_purchase_order(policy, rate=rate, description=description, schedule_date=schedule_date)
-	else:
-		doc = make_material_request(policy, rate=rate, description=description, schedule_date=schedule_date)
-	frappe.db.set_value(
-		"Insurance Policy", policy.name, {"procurement_doctype": doc.doctype, "procurement_name": doc.name}
-	)
-	return doc
+		return make_purchase_order(policy, rate=rate, description=description, schedule_date=schedule_date)
+	# Saving it links it to the policy (premium.link_procurement).
+	return make_material_request(policy, rate=rate, description=description, schedule_date=schedule_date)
 
 
 def raise_renewal_request(policy, procurement=None):
-	if policy.docstatus != 1 or policy.status not in ("Active", "Expiring", "Expired"):
+	if policy.docstatus != 1 or policy.status not in ("Active", "Expiring", "Expired", "Awaiting Premium", "Renewal In Progress"):
 		frappe.throw(_("Renewal can be raised for submitted Active / Expiring / Expired policies only."))
 	if policy.renewed_to and frappe.db.get_value("Insurance Policy", policy.renewed_to, "docstatus") != 2:
 		frappe.throw(_("Already renewed by {0}.").format(get_link_to_form("Insurance Policy", policy.renewed_to)))
 	existing = frappe.db.get_value("Insurance Policy", {"renewed_from": policy.name, "docstatus": 0}, "name")
 	if existing:
 		frappe.throw(_("Draft renewal {0} already exists.").format(get_link_to_form("Insurance Policy", existing)))
-	mode = _resolve_procurement(procurement)
+	mode = resolve_procurement(procurement)
 
 	start, end = next_period(policy.end_date)
 	new = frappe.new_doc("Insurance Policy")
@@ -89,24 +78,18 @@ def raise_renewal_request(policy, procurement=None):
 	new.insert()
 
 	doc = _create_procurement(new, mode, policy.total_premium, policy.end_date)
-	new.reload()
-	return {
-		"policy": new.name,
-		"procurement_doctype": doc.doctype,
-		"procurement_name": doc.name,
-		"excluded": excluded,
-	}
+	return {"policy": new.name, "doc": doc, "excluded": excluded}
 
 
 def raise_purchase_request(policy, procurement=None):
-	"""New cover with no history: draft policy → MR / PO only."""
+	"""New cover with no history (or a renewal whose request was never saved): unsaved MR / PO."""
 	if policy.docstatus != 0:
 		frappe.throw(_("Purchase requests are raised from draft policies; use Raise Renewal Request on a live policy."))
 	if has_open_procurement(policy):
 		frappe.throw(_("{0} {1} is already open.").format(policy.procurement_doctype, policy.procurement_name))
 	if policy.is_new():
 		frappe.throw(_("Save the policy first."))
-	mode = _resolve_procurement(procurement)
+	mode = resolve_procurement(procurement)
 	rate = flt(policy.total_premium) or flt(policy.basic_premium)
 	doc = _create_procurement(policy, mode, rate, add_days(getdate(policy.start_date), -1))
-	return {"policy": policy.name, "procurement_doctype": doc.doctype, "procurement_name": doc.name}
+	return {"policy": policy.name, "doc": doc}

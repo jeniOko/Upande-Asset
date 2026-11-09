@@ -104,9 +104,14 @@ def _new_purchase_invoice(policy, lines, is_return=0, return_against=None):
 	for row, line in zip(pi.items, lines, strict=True):
 		row.update(line)
 	pi.calculate_taxes_and_totals()
-	pi.flags.ignore_permissions = True
-	pi.insert()
-	return pi
+	return _unsaved(pi)
+
+
+def _unsaved(doc):
+	"""Documents are handed to the user unsaved (like ERPNext's "Create →" buttons) so that
+	the site's own mandatory fields and workflows apply when they save it."""
+	doc.set_onload("load_after_mapping", True)
+	return doc
 
 
 def build_premium_lines(policy, accounts, item_code):
@@ -156,9 +161,16 @@ def make_premium_invoice(policy):
 def draft_premium_invoice(policy):
 	"""Draft, non-return PI for the policy that is not an endorsement document."""
 	for name in linked_documents("Purchase Invoice", policy.name, docstatus=0, is_return=0):
-		if not _is_endorsement_doc("Purchase Invoice", name, policy):
+		if not _is_endorsement_doc("Purchase Invoice", name, policy) and _premium_rows(
+			frappe.get_doc("Purchase Invoice", name), policy.name
+		):
 			return name
 	return None
+
+
+def _premium_rows(doc, policy_name):
+	"""Item rows that pay the policy premium itself (not an endorsement adjustment)."""
+	return [d for d in doc.get("items") or [] if d.get("insurance_policy") == policy_name and not d.get("insurance_endorsement")]
 
 
 def has_open_procurement(policy):
@@ -167,44 +179,114 @@ def has_open_procurement(policy):
 	return frappe.db.get_value(policy.procurement_doctype, policy.procurement_name, "docstatus") in (0, 1)
 
 
-def make_endorsement_document(policy, endorsement_type, effective_date, asset_lines, endorsement_no):
-	"""asset_lines: [(asset, cost_center, amount)] – positive → PI/PO, negative → debit note.
-	Returns (doctype, name) or (None, None) when the net adjustment is zero."""
-	total = flt(sum(flt(a) for _x, _cc, a in asset_lines), 2)
+def resolve_procurement(procurement=None):
+	mode = procurement or get_settings().renewal_procurement or "Material Request"
+	if mode == "Ask":
+		frappe.throw(_("Choose Material Request or Purchase Order."))
+	if mode not in ("Material Request", "Purchase Order"):
+		frappe.throw(_("Invalid procurement type {0}.").format(mode))
+	return mode
+
+
+def _rows_query(doctype, policy, child_filters=None, **filters):
+	parent = frappe.qb.DocType(doctype)
+	child = frappe.qb.DocType(ITEM_TABLES[doctype])
+	q = (
+		frappe.qb.from_(parent).join(child).on(child.parent == parent.name)
+		.select(parent.name).distinct()
+		.where(child.parenttype == doctype).where(child.insurance_policy == policy)
+		.orderby(parent.creation)
+	)
+	for field, value in (child_filters or {}).items():
+		q = q.where(child[field] == value)
+	for field, value in filters.items():
+		q = q.where(parent[field].isin(list(value)) if isinstance(value, (list, tuple)) else (parent[field] == value))
+	return q.run(pluck=True)
+
+
+def endorsement_documents(policy, endorsement_group, docstatus=(0, 1)):
+	"""[(doctype, name)] of the MRs / POs / invoices raised for an endorsement."""
+	out = []
+	for doctype in ("Material Request", "Purchase Order", "Purchase Invoice"):
+		for name in _rows_query(doctype, policy, {"insurance_endorsement": endorsement_group}, docstatus=docstatus):
+			out.append((doctype, name))
+	return out
+
+
+def _endorsement_logs(policy, endorsement_group):
+	logs = [e for e in policy.get("endorsements") or []
+		if e.endorsement_group == endorsement_group and e.status in ("Requested", "Active")]
+	if not logs:
+		frappe.throw(_("Endorsement not found, withdrawn or reversed."))
+	return logs
+
+
+def endorsement_has_document(policy, endorsement_group):
+	from upande_asset.upande_asset.insurance.endorsement import refund_entries
+
+	if endorsement_documents(policy.name, endorsement_group) or refund_entries(policy.name, endorsement_group):
+		return True
+	# Endorsements recorded before documents carried the endorsement on their rows.
+	for e in _endorsement_logs(policy, endorsement_group):
+		if e.reference_doctype and e.reference_name and frappe.db.get_value(e.reference_doctype, e.reference_name, "docstatus") in (0, 1):
+			return True
+	return False
+
+
+def _endorsement_line_description(policy, e, start, end):
+	"""What procurement asks the insurer for, per asset: e.g. "Add Tractor (ACC-ASS-…) to cover:
+	sum insured 400,000 from 09-11-2026 to 09-10-2027 – endorsement request on policy POL-1"."""
+	currency = frappe.get_cached_value("Company", policy.company, "default_currency")
+	money = lambda v: frappe.utils.fmt_money(v, currency=currency)  # noqa: E731
+	what = f"{frappe.db.get_value('Asset', e.asset, 'asset_name') or e.asset} ({e.asset})" if e.asset else (
+		policy.get("cover_description") or _("the cover"))
+	if e.endorsement_type == "Add Assets":
+		change = _("Add {0} to cover: sum insured {1}").format(what, money(e.new_sum_insured))
+	elif e.endorsement_type == "Change Sum Insured":
+		change = _("Change sum insured of {0} from {1} to {2}").format(what, money(e.old_sum_insured), money(e.new_sum_insured))
+	else:
+		change = _("{0}: {1}").format(_(e.endorsement_type), what)
+	ref = _("endorsement {0}").format(e.endorsement_no) if e.endorsement_no else _("endorsement request")
+	return _("{0}, {1} to {2} – {3} on policy {4} ({5})").format(change, frappe.format(start, "Date"), frappe.format(end, "Date"),
+		ref, policy.policy_number or policy.name, policy.policy_type)
+
+
+def make_endorsement_document(policy, endorsement_group, procurement=None):
+	"""Unsaved premium document for an endorsement: extra premium starts procurement
+	(Material Request or Purchase Order, as for renewals), already at the request stage so
+	procurement can take it to the insurer; returned premium is a Journal Entry once the
+	insurer has confirmed the endorsement."""
+	logs = _endorsement_logs(policy, endorsement_group)
+	total = flt(sum(flt(e.premium_adjustment) for e in logs), 2)
+	label = logs[0].endorsement_no or _(logs[0].endorsement_type)
 	if not total:
-		return None, None
+		frappe.throw(_("Endorsement {0} has no premium adjustment.").format(label))
+	if total < 0:
+		from upande_asset.upande_asset.insurance.endorsement import make_refund_entry
+
+		return make_refund_entry(policy, endorsement_group)
+	if endorsement_has_document(policy, endorsement_group):
+		frappe.throw(_("A premium document for endorsement {0} already exists.").format(label))
 	accounts = get_company_accounts(policy.company, PREMIUM_ACCOUNTS)
 	item_code = get_premium_item()
-	default_cc = frappe.get_cached_value("Company", policy.company, "cost_center")
-	start, end = getdate(effective_date), getdate(policy.end_date)
+	default_cc = policy.get("cost_center") or frappe.get_cached_value("Company", policy.company, "cost_center")
+	rows = {r.name: r for r in policy.get("insured_assets") or []}
+	start, end = getdate(logs[0].effective_date), getdate(policy.end_date)
 	sign = 1 if total > 0 else -1
 	lines = []
-	for asset, cc, amount in asset_lines:
-		if not flt(amount):
+	for e in logs:
+		if not flt(e.premium_adjustment):
 			continue
-		desc = _("Endorsement {0} ({1}) on {2}{3}, {4} – {5}").format(
-			endorsement_no,
-			_(endorsement_type),
-			policy.policy_number or policy.name,
-			f" – {asset}" if asset else "",
-			frappe.format(start, "Date"),
-			frappe.format(end, "Date"),
-		)
-		line = _premium_line(item_code, abs(flt(amount)), accounts, start, end, cc or default_cc, desc, qty=sign)
+		row = rows.get(e.policy_row)
+		cc = (row.cost_center if row else None) or (e.asset and frappe.db.get_value("Asset", e.asset, "cost_center")) or default_cc
+		desc = _endorsement_line_description(policy, e, start, end)
+		line = _premium_line(item_code, abs(flt(e.premium_adjustment)), accounts, start, end, cc, desc, qty=sign)
+		line["insurance_endorsement"] = endorsement_group
 		lines.append(line)
 
-	settings = get_settings()
-	if sign > 0 and settings.renewal_procurement == "Purchase Order" and settings.endorsements_via_po:
-		po = make_purchase_order(policy, lines, schedule_date=start)
-		return "Purchase Order", po.name
-	if sign < 0:
-		return_against = None
-		if policy.purchase_invoice and frappe.db.get_value("Purchase Invoice", policy.purchase_invoice, "docstatus") == 1:
-			return_against = policy.purchase_invoice
-		pi = _new_purchase_invoice(policy, lines, is_return=1, return_against=return_against)
-		return "Purchase Invoice", pi.name
-	pi = _new_purchase_invoice(policy, lines)
-	return "Purchase Invoice", pi.name
+	if resolve_procurement(procurement) == "Purchase Order":
+		return make_purchase_order(policy, lines, schedule_date=start)
+	return make_material_request(policy, lines=lines, schedule_date=start)
 
 
 def _procurement_line(item_code, rate, description, schedule_date, cost_center=None, expense_account=None):
@@ -227,6 +309,16 @@ def _procurement_line(item_code, rate, description, schedule_date, cost_center=N
 	return line
 
 
+def _lines_to_rows(item_code, lines, schedule_date):
+	rows = []
+	for ln in lines:
+		row = _procurement_line(item_code, ln["rate"], ln["description"], schedule_date, ln.get("cost_center"), ln.get("expense_account"))
+		if ln.get("insurance_endorsement"):
+			row["insurance_endorsement"] = ln["insurance_endorsement"]
+		rows.append(row)
+	return rows
+
+
 def make_purchase_order(policy, lines=None, schedule_date=None, rate=None, description=None):
 	if not policy.insurer:
 		frappe.throw(_("A Purchase Order needs a supplier – set the Insurer on {0} or use a Material Request.").format(policy.name))
@@ -247,11 +339,8 @@ def make_purchase_order(policy, lines=None, schedule_date=None, rate=None, descr
 		}
 	)
 	if lines:
-		for ln in lines:
-			po.append(
-				"items",
-				_procurement_line(item_code, ln["rate"], ln["description"], schedule_date, ln.get("cost_center"), ln.get("expense_account")),
-			)
+		for row in _lines_to_rows(item_code, lines, schedule_date):
+			po.append("items", row)
 	else:
 		po.append(
 			"items",
@@ -262,45 +351,19 @@ def make_purchase_order(policy, lines=None, schedule_date=None, rate=None, descr
 	wanted = [flt(d.rate, 2) for d in po.items]
 	po.set_missing_values()
 	_reassert_rates(po, wanted)
-	po.flags.ignore_permissions = True
-	po.insert()
-	_finalise(po, "purchase_order_status")
-	return po
+	po.calculate_taxes_and_totals()
+	return _unsaved(po)
 
 
-def _finalise(doc, setting):
-	"""Submit the new MR / PO when Settings say so – unless an approval Workflow
-	owns that doctype, in which case the workflow decides and it stays Draft."""
-	if (get_settings().get(setting) or "Draft") != "Submitted":
-		return
-	from frappe.model.workflow import get_workflow_name
-
-	if get_workflow_name(doc.doctype):
-		frappe.msgprint(
-			_("{0} {1} was left in Draft: its approval workflow controls submission.").format(_(doc.doctype), doc.name),
-			alert=True,
-		)
-		return
-	doc.flags.ignore_permissions = True
-	doc.submit()
-
-
-def _reassert_rates(doc, wanted, persist=False):
+def _reassert_rates(doc, wanted):
 	"""A default buying price list (and the Item Price ERPNext auto-creates on
 	purchase) would otherwise replace the policy premium with the last price paid."""
-	changed = False
 	for d, rate in zip(doc.items, wanted, strict=True):
 		if flt(d.rate, 2) != rate:
-			d.rate, d.amount, changed = rate, flt(rate * flt(d.qty), 2), True
-	if not changed:
-		return
-	if persist:
-		# Material Request only: it carries no document totals to recompute.
-		for d in doc.items:
-			d.db_set({"rate": d.rate, "amount": d.amount}, update_modified=False)
+			d.rate, d.amount = rate, flt(rate * flt(d.qty), 2)
 
 
-def make_material_request(policy, rate, description, schedule_date):
+def make_material_request(policy, rate=None, description=None, schedule_date=None, lines=None):
 	item_code = get_premium_item()
 	schedule_date = getdate(schedule_date or nowdate())
 	if schedule_date < getdate(nowdate()):
@@ -314,19 +377,18 @@ def make_material_request(policy, rate, description, schedule_date):
 			"schedule_date": schedule_date,
 		}
 	)
-	line = _procurement_line(item_code, rate, description, schedule_date)
-	line["insurance_policy"] = policy.name
+	rows = _lines_to_rows(item_code, lines, schedule_date) if lines else [_procurement_line(item_code, rate, description, schedule_date)]
 	# Not required on v16 for non-stock items; only applied when configured.
 	from upande_asset.upande_asset.insurance.utils import get_company_defaults
 
-	if warehouse := get_company_defaults(policy.company).insurance_request_warehouse:
-		line["warehouse"] = warehouse
-	mr.append("items", line)
-	mr.flags.ignore_permissions = True
-	mr.insert()
-	_reassert_rates(mr, [flt(rate, 2)], persist=True)
-	_finalise(mr, "material_request_status")
-	return mr
+	warehouse = get_company_defaults(policy.company).insurance_request_warehouse
+	for row in rows:
+		row["insurance_policy"] = policy.name
+		if warehouse:
+			row["warehouse"] = warehouse
+		row["amount"] = flt(flt(row["rate"]) * flt(row["qty"]), 2)
+		mr.append("items", row)
+	return _unsaved(mr)
 
 
 def _is_endorsement_doc(doctype, name, policy):
@@ -354,9 +416,11 @@ def purchase_invoice_validate(doc, method=None):
 		endorsement = _endorsement_for_po(policy, po_names) if po_names else None
 		start = getdate(endorsement.effective_date) if endorsement else getdate(policy.start_date)
 		end = getdate(policy.end_date)
+		effective = {e.endorsement_group: e.effective_date for e in policy.get("endorsements") or [] if e.endorsement_group}
 		for d in rows:
 			if not d.service_start_date or not d.service_end_date:
-				d.service_start_date, d.service_end_date = start, end
+				row_start = effective.get(d.get("insurance_endorsement")) if d.get("insurance_endorsement") else None
+				d.service_start_date, d.service_end_date = getdate(row_start) if row_start else start, end
 			if not d.enable_deferred_expense:
 				d.enable_deferred_expense = 1
 			if not d.deferred_expense_account and accounts.prepaid_insurance_account:
@@ -367,24 +431,75 @@ def purchase_invoice_validate(doc, method=None):
 				d.expense_account = accounts.insurance_expense_account
 
 
+def refresh_policies_of_invoices(invoices):
+	"""Renewal status depends on the premium invoice being submitted / paid."""
+	from upande_asset.upande_asset.doctype.insurance_policy.insurance_policy import refresh_renewal_chain
+
+	invoices = [i for i in set(invoices or []) if i]
+	if not invoices:
+		return
+	for policy in frappe.get_all("Purchase Invoice Item", filters={"parent": ["in", invoices], "insurance_policy": ["is", "set"]},
+			pluck="insurance_policy", distinct=True):
+		refresh_renewal_chain(policy)
+
+
 def purchase_invoice_on_submit(doc, method=None):
+	_link_premium_invoice(doc)
+	refresh_policies_of_invoices([doc.name, doc.get("return_against")])
+
+
+def _link_premium_invoice(doc):
 	if doc.is_return:
 		return
 	for policy_name in policies_on(doc):
 		policy = frappe.get_doc("Insurance Policy", policy_name)
 		if _is_endorsement_doc("Purchase Invoice", doc.name, policy):
 			continue
-		po_names = {d.purchase_order for d in doc.items if d.get("insurance_policy") == policy_name and d.get("purchase_order")}
-		if po_names and _endorsement_for_po(policy, po_names):
+		rows = _premium_rows(doc, policy_name)
+		po_names = {d.purchase_order for d in rows if d.get("purchase_order")}
+		if not rows or (po_names and _endorsement_for_po(policy, po_names)):
 			continue
 		if not policy.purchase_invoice or frappe.db.get_value("Purchase Invoice", policy.purchase_invoice, "docstatus") == 2:
 			policy.db_set("purchase_invoice", doc.name)
+			_premium_follows_invoice(policy, doc, rows)
+
+
+def _premium_follows_invoice(policy, invoice, rows):
+	"""The insurer's invoice is the premium actually paid: when it differs from the
+	policy (e.g. a renewal quoted at last year's premium), the policy takes the invoiced
+	amount. Levies stay as entered; the difference goes to the basic premium."""
+	invoiced = flt(sum(flt(d.base_net_amount) for d in rows), 2)
+	if not invoiced or invoiced == flt(policy.total_premium, 2):
+		return
+	levies = min(flt(policy.levies), invoiced)
+	old_total = flt(policy.total_premium, 2)
+	policy.db_set({"basic_premium": flt(invoiced - levies, 2), "levies": levies, "total_premium": invoiced})
+	currency = frappe.get_cached_value("Company", policy.company, "default_currency")
+	policy.add_comment(
+		"Info",
+		_("Premium changed from {0} to {1} to match Purchase Invoice {2}.").format(
+			frappe.utils.fmt_money(old_total, currency=currency),
+			frappe.utils.fmt_money(invoiced, currency=currency),
+			frappe.utils.get_link_to_form("Purchase Invoice", invoice.name),
+		),
+	)
 
 
 def purchase_invoice_on_cancel(doc, method=None):
 	for policy_name in policies_on(doc):
 		if frappe.db.get_value("Insurance Policy", policy_name, "purchase_invoice") == doc.name:
 			frappe.db.set_value("Insurance Policy", policy_name, "purchase_invoice", None)
+	refresh_policies_of_invoices([doc.name, doc.get("return_against")])
+
+
+def payment_on_change(doc, method=None):
+	"""Payment Entry / Journal Entry against a premium invoice (Asset Settings may count a
+	renewal complete only once the premium is paid)."""
+	if doc.doctype == "Payment Entry":
+		invoices = [r.reference_name for r in doc.get("references") or [] if r.reference_doctype == "Purchase Invoice"]
+	else:
+		invoices = [r.reference_name for r in doc.get("accounts") or [] if r.get("reference_type") == "Purchase Invoice"]
+	refresh_policies_of_invoices(invoices)
 
 
 def purchase_order_on_submit(doc, method=None):
@@ -403,3 +518,49 @@ def purchase_order_on_submit(doc, method=None):
 			updates.update({"procurement_doctype": "Purchase Order", "procurement_name": doc.name})
 		if updates:
 			frappe.db.set_value("Insurance Policy", policy_name, updates)
+
+
+def material_request_validate(doc, method=None):
+	"""ERPNext re-prices every row of a new Material Request from the buying price list
+	(MaterialRequest.on_update → update_item_rates). Keep the premium as saved."""
+	doc.flags.premium_rates = [(d, flt(d.rate, 2)) for d in doc.get("items") or [] if d.get("insurance_policy")]
+
+
+def material_request_on_update(doc, method=None):
+	for d, rate in doc.flags.premium_rates or []:
+		if flt(d.rate, 2) != rate:
+			d.db_set({"rate": rate, "amount": flt(rate * flt(d.qty), 2)}, update_modified=False)
+
+
+def link_procurement(doc, method=None):
+	"""after_insert of a premium MR / PO / PI the user saved: record it on the policy
+	(open procurement of a draft policy, or the endorsement it pays)."""
+	for policy_name in policies_on(doc):
+		groups = {d.insurance_endorsement for d in doc.items if d.get("insurance_policy") == policy_name and d.get("insurance_endorsement")}
+		for group in groups:
+			for log in frappe.get_all("Insurance Policy Endorsement Log", pluck="name",
+					filters={"parenttype": "Insurance Policy", "parent": policy_name, "endorsement_group": group}):
+				frappe.db.set_value("Insurance Policy Endorsement Log", log,
+					{"reference_doctype": doc.doctype, "reference_name": doc.name}, update_modified=False)
+		if doc.doctype == "Purchase Invoice" or not _premium_rows(doc, policy_name):
+			continue
+		policy = frappe.db.get_value("Insurance Policy", policy_name,
+			["name", "docstatus", "procurement_doctype", "procurement_name"], as_dict=True)
+		if policy.docstatus != 0:
+			continue
+		# A PO made from the policy's MR takes over as the open procurement.
+		if not has_open_procurement(policy) or (policy.procurement_doctype == "Material Request" and doc.doctype == "Purchase Order"):
+			frappe.db.set_value("Insurance Policy", policy_name,
+				{"procurement_doctype": doc.doctype, "procurement_name": doc.name}, update_modified=False)
+
+
+def unlink_procurement(doc, method=None):
+	"""on_trash of an MR / PO / PI: drop the policy's links to it so the policy can still be saved."""
+	if not policies_on(doc):
+		return
+	frappe.db.sql(
+		"""UPDATE `tabInsurance Policy` SET procurement_doctype = NULL, procurement_name = NULL
+		WHERE procurement_doctype = %s AND procurement_name = %s""", (doc.doctype, doc.name))
+	frappe.db.sql(
+		"""UPDATE `tabInsurance Policy Endorsement Log` SET reference_doctype = NULL, reference_name = NULL
+		WHERE reference_doctype = %s AND reference_name = %s""", (doc.doctype, doc.name))

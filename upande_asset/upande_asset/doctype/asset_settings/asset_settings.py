@@ -24,6 +24,16 @@ class AssetSettings(Document):
 	def on_update(self):
 		frappe.clear_document_cache(self.doctype, self.name)
 		self._apply_display_settings()
+		if self.has_value_changed("renewal_complete_on"):
+			self._refresh_renewal_statuses()
+
+	def _refresh_renewal_statuses(self):
+		"""Renewed / Renewal In Progress / Awaiting Premium depend on this setting."""
+		from upande_asset.upande_asset.doctype.insurance_policy.insurance_policy import refresh_status
+
+		for name in frappe.get_all("Insurance Policy", filters={"docstatus": 1,
+				"status": ["in", ["Renewed", "Renewal In Progress", "Awaiting Premium", "Active", "Expiring"]]}, pluck="name"):
+			refresh_status(name)
 
 	def _apply_display_settings(self):
 		"""Apply the Display switches straight away instead of waiting for the next migrate."""

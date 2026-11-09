@@ -32,6 +32,9 @@
   "description",
   "col_break_4",
   "findings",
+  "accounting_dimensions_section",
+  "cost_center",
+  "dimension_col_break",
   "materials_tab",
   "sec_materials",
   "materials",
@@ -43,6 +46,12 @@
   "sec_services_total",
   "services_cost",
   "col_break_svc",
+  "sec_stock_items",
+  "stock_items",
+  "sec_stock_items_total",
+  "consumed_items_cost",
+  "col_break_stock",
+  "consumption_stock_entry",
   "sec_total",
   "total_service_cost",
   "col_break_total",
@@ -55,6 +64,8 @@
   "sec_more_info",
   "naming_series",
   "amended_from",
+  "last_reminder_days",
+  "last_reminder_on",
   "connections_tab"
  ],
  "fields": [
@@ -232,7 +243,25 @@
    "fieldname": "findings",
    "fieldtype": "Long Text",
    "label": "Findings / Outcome",
-   "description": "Observations after the service \u2014 condition of asset, parts replaced, etc."
+   "description": "Observations after the service — condition of asset, parts replaced, etc."
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "accounting_dimensions_section",
+   "fieldtype": "Section Break",
+   "label": "Accounting Dimensions"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center",
+   "description": "Taken from the asset. Parts and services requested or issued from this record are charged here.",
+   "show_description_on_click": 1
+  },
+  {
+   "fieldname": "dimension_col_break",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "materials_tab",
@@ -242,15 +271,15 @@
   {
    "fieldname": "sec_materials",
    "fieldtype": "Section Break",
-   "label": "Materials"
+   "label": "Materials, Assets & Services"
   },
   {
    "fieldname": "materials",
    "fieldtype": "Table",
-   "label": "Materials & Services Requested",
+   "label": "Stock Items, Assets & Services",
    "options": "Asset Service Material",
    "allow_on_submit": 1,
-   "description": "Parts and services this job needs. Use Material Request \u2192 Request from Stores / Request Purchase to raise them.",
+   "description": "Everything this job needs: stock items (parts, consumables), asset items (components that build or upgrade the asset) and services. Material Request opens the right request for each row: in stock → from stores; out of stock → purchase or transfer, then issue once received. Asset items and services are purchased.",
    "show_description_on_click": 1
   },
   {
@@ -313,7 +342,7 @@
    "options": "Company:company:default_currency",
    "read_only": 1,
    "allow_on_submit": 1,
-   "description": "Total Materials Cost + Total Services Cost.",
+   "description": "Total Materials Cost + Total Services Cost + Consumed Items Cost.",
    "bold": 1
   },
   {
@@ -381,11 +410,65 @@
    "fieldtype": "Tab Break",
    "label": "Connections",
    "show_dashboard": 1
+  },
+  {
+   "fieldname": "last_reminder_days",
+   "fieldtype": "Int",
+   "label": "Last Reminder (days before due)",
+   "read_only": 1,
+   "hidden": 1,
+   "no_copy": 1,
+   "description": "Band of the last reminder sent; -1 = overdue reminder."
+  },
+  {
+   "fieldname": "last_reminder_on",
+   "fieldtype": "Date",
+   "label": "Last Reminder On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "sec_stock_items",
+   "fieldtype": "Section Break",
+   "label": "Consumed Stock Items",
+   "description": "Parts taken from the warehouse for this job, as on ERPNext's Asset Repair. They are issued with a Stock Entry when the record is completed."
+  },
+  {
+   "fieldname": "stock_items",
+   "fieldtype": "Table",
+   "label": "Stock Items",
+   "options": "Asset Repair Consumed Item"
+  },
+  {
+   "fieldname": "sec_stock_items_total",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "consumed_items_cost",
+   "fieldtype": "Currency",
+   "label": "Consumed Items Cost",
+   "options": "Company:company:default_currency",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "col_break_stock",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "consumption_stock_entry",
+   "fieldtype": "Link",
+   "label": "Stock Entry",
+   "options": "Stock Entry",
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1,
+   "description": "Issue of the Consumed Stock Items, made when the record was completed."
   }
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-11-06 10:00:00.000000",
+ "modified": "2026-11-09 11:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Asset",
  "name": "Asset Service Record",

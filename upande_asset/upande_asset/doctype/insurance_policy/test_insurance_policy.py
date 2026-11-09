@@ -11,13 +11,9 @@ import unittest
 import frappe
 from frappe.utils import add_days, add_months, add_years, flt, getdate, today
 
+from upande_asset.upande_asset.doctype.insurance_policy import insurance_policy as api
 from upande_asset.upande_asset.doctype.insurance_policy.insurance_policy import (
-	endorse,
-	generate_release_schedule,
 	get_endorsement_preview,
-	make_premium_invoice,
-	raise_purchase_request,
-	raise_renewal_request,
 	reverse_endorsement,
 )
 from upande_asset.upande_asset.insurance import tasks
@@ -32,6 +28,50 @@ from upande_asset.upande_asset.insurance.test_fixtures import (
 	make_policy,
 )
 from upande_asset.upande_asset.insurance.utils import policy_days, remaining_days
+
+
+# The app hands MRs / POs / invoices to the user unsaved; these helpers save them the
+# way the user would, so the tests can follow the documents through.
+
+
+def _save(doc_dict):
+	doc = frappe.get_doc(doc_dict)
+	doc.insert()
+	return doc
+
+
+def make_premium_invoice(policy):
+	return _save(api.make_premium_invoice(policy)).name
+
+
+def _raise(method, policy, procurement):
+	res = method(policy, procurement)
+	doc = _save(res["doc"])
+	res.update({"procurement_doctype": doc.doctype, "procurement_name": doc.name})
+	return res
+
+
+def raise_renewal_request(policy, procurement=None):
+	return _raise(api.raise_renewal_request, policy, procurement)
+
+
+def raise_purchase_request(policy, procurement=None):
+	return _raise(api.raise_purchase_request, policy, procurement)
+
+
+def endorse(policy, action, payload, procurement="Material Request"):
+	res = api.endorse(policy, action, payload)
+	res.update({"reference_doctype": None, "reference_name": None})
+	if frappe.parse_json(payload).get("create_premium_document", 1) and flt(res["total"]):
+		doc = _save(api.make_endorsement_document(policy, res["endorsement_group"], procurement))
+		res.update({"reference_doctype": doc.doctype, "reference_name": doc.name})
+	return res
+
+
+def _po_invoice(po):
+	from erpnext.buying.doctype.purchase_order.purchase_order import make_purchase_invoice
+
+	return make_purchase_invoice(po)
 
 
 class TestInsurancePolicy(unittest.TestCase):
@@ -189,7 +229,7 @@ class TestInsurancePolicy(unittest.TestCase):
 
 	def test_opening_policy_hides_premium_invoice(self):
 		a = make_asset()
-		p = make_policy([a], is_opening="Yes", prepaid_balance_at_go_live=5000, go_live_date=today())
+		p = make_policy([a], is_opening="Yes")
 		with self.assertRaises(frappe.ValidationError):
 			make_premium_invoice(p.name)
 
@@ -205,9 +245,15 @@ class TestInsurancePolicy(unittest.TestCase):
 		expected = flt(120_000 / 1_000_000 * 500_000 * remaining_days(eff, p.end_date) / policy_days(p.start_date, p.end_date), 2)
 		self.assertAlmostEqual(preview["total"], expected, places=2)
 
-		res = endorse(p.name, "Add Assets", frappe.as_json(payload))
-		self.assertEqual(res["reference_doctype"], "Purchase Invoice")
-		pi = frappe.get_doc("Purchase Invoice", res["reference_name"])
+		res = endorse(p.name, "Add Assets", frappe.as_json(payload), procurement="Purchase Order")
+		self.assertEqual(res["reference_doctype"], "Purchase Order")
+		po = frappe.get_doc("Purchase Order", res["reference_name"])
+		self.assertAlmostEqual(flt(po.net_total), expected, places=2)
+		self.assertEqual(po.items[0].cost_center, CC_B)
+		po.submit()
+		pi = frappe.get_doc(_po_invoice(po.name))
+		pi.bill_no = "E-1"
+		pi.insert()
 		self.assertEqual(pi.is_return, 0)
 		self.assertAlmostEqual(flt(pi.net_total), expected, places=2)
 		self.assertEqual(getdate(pi.items[0].service_start_date), getdate(eff))
@@ -218,20 +264,23 @@ class TestInsurancePolicy(unittest.TestCase):
 		self.assertEqual(len(p.endorsements), 1)
 		self.assertEqual(frappe.db.get_value("Asset", new.name, "insurance_policy"), p.name)
 		# Submitting the endorsement PI must not hijack the policy's premium invoice link.
-		pi.bill_no = "E-1"
 		pi.submit()
 		self.assertFalse(frappe.db.get_value("Insurance Policy", p.name, "purchase_invoice"))
 
-	def test_remove_asset_debit_note_and_reverse(self):
+	def test_remove_asset_refund_entry_and_reverse(self):
 		a, b = make_asset(), make_asset()
 		p = make_policy([a, b])
 		res = endorse(p.name, "Remove Assets", frappe.as_json({
 			"endorsement_no": "END-2", "effective_date": today(), "assets": [{"asset": b.name}],
 		}))
-		dn = frappe.get_doc("Purchase Invoice", res["reference_name"])
-		self.assertEqual(dn.is_return, 1)
-		self.assertLess(flt(dn.grand_total), 0)
-		self.assertEqual(getdate(dn.items[0].service_start_date), getdate(today()))
+		dn = frappe.get_doc("Journal Entry", res["reference_name"])  # returned premium: a Journal Entry
+		self.assertEqual((dn.insurance_policy, dn.insurance_endorsement), (p.name, res["endorsement_group"]))
+		party = next(r for r in dn.accounts if r.party)
+		self.assertEqual((party.party, flt(party.debit_in_account_currency)), (INSURER, -flt(res["total"])))
+		from upande_asset.upande_asset.insurance.utils import get_company_accounts
+
+		expense = get_company_accounts(COMPANY).insurance_expense_account
+		self.assertTrue(all(r.account == expense for r in dn.accounts if not r.party))  # Cr expense, not prepaid
 		p.reload()
 		row = next(r for r in p.insured_assets if r.asset == b.name)
 		self.assertEqual(row.row_status, "Removed")
@@ -243,7 +292,7 @@ class TestInsurancePolicy(unittest.TestCase):
 		row = next(r for r in p.insured_assets if r.asset == b.name)
 		self.assertEqual(row.row_status, "Active")
 		self.assertEqual(p.endorsements[0].status, "Reversed")
-		self.assertFalse(frappe.db.exists("Purchase Invoice", dn.name))
+		self.assertFalse(frappe.db.exists("Journal Entry", dn.name))
 		self.assertEqual(frappe.db.get_value("Asset", b.name, "insurance_policy"), p.name)
 
 	def test_remove_endorsement_closes_disposal_todo(self):
@@ -261,9 +310,8 @@ class TestInsurancePolicy(unittest.TestCase):
 		res = endorse(p.name, "Add Assets", frappe.as_json({
 			"endorsement_no": "END-3", "effective_date": today(), "assets": [{"asset": b.name, "sum_insured": 10_000}],
 		}))
-		pi = frappe.get_doc("Purchase Invoice", res["reference_name"])
-		pi.bill_no = "E-3"
-		pi.submit()
+		mr = frappe.get_doc("Material Request", res["reference_name"])
+		mr.submit()
 		with self.assertRaises(frappe.ValidationError):
 			reverse_endorsement(p.name, res["endorsement_group"])
 
@@ -282,8 +330,8 @@ class TestInsurancePolicy(unittest.TestCase):
 		p.reload()
 		self.assertEqual(p.status, "Cancelled")
 		self.assertTrue(all(r.row_status == "Removed" for r in p.insured_assets))
-		dn = frappe.get_doc("Purchase Invoice", res["reference_name"])
-		self.assertEqual(dn.is_return, 1)
+		self.assertEqual(res["reference_doctype"], "Journal Entry")
+		self.assertLess(flt(res["total"]), 0)
 
 	def test_endorsement_rolls_back_on_failure(self):
 		a, b = make_asset(), make_asset()
@@ -318,12 +366,69 @@ class TestInsurancePolicy(unittest.TestCase):
 		with self.assertRaises(frappe.ValidationError):
 			raise_renewal_request(p.name, "Material Request")
 
+		self.assertEqual(frappe.db.get_value("Insurance Policy", p.name, "status"), "Renewal In Progress")  # not "Expiring"
+
 		new.submit()
-		self.assertEqual(frappe.db.get_value("Insurance Policy", p.name, "status"), "Renewed")
 		self.assertEqual(frappe.db.get_value("Insurance Policy", p.name, "renewed_to"), new.name)
+		self.assertEqual(frappe.db.get_value("Insurance Policy", p.name, "status"), "Renewal In Progress")
+		self.assertEqual(frappe.db.get_value("Insurance Policy", new.name, "status"), "Awaiting Premium")
 		new.reload()
 		new.cancel()
-		self.assertNotEqual(frappe.db.get_value("Insurance Policy", p.name, "status"), "Renewed")
+		self.assertEqual(frappe.db.get_value("Insurance Policy", p.name, "status"), "Expiring")
+
+	def _status(self, name):
+		return frappe.db.get_value("Insurance Policy", name, "status")
+
+	def test_renewal_complete_only_when_premium_invoiced_or_paid(self):
+		from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
+
+		from upande_asset.upande_asset.insurance.asset import get_asset_insurance_status
+
+		asset = make_asset()
+		p = make_policy([asset], start=add_days(today(), -340), end=add_days(today(), 24))
+		self.assertEqual(self._status(p.name), "Expiring")
+		self.assertEqual(get_asset_insurance_status(asset.name)["state"], "Cover expiring")
+
+		res = raise_renewal_request(p.name, "Purchase Order")
+		new = frappe.get_doc("Insurance Policy", res["policy"])
+		self.assertEqual(self._status(p.name), "Renewal In Progress")
+		self.assertEqual(get_asset_insurance_status(asset.name)["state"], "Renewal in progress")
+		po = frappe.get_doc("Purchase Order", res["procurement_name"])
+		po.submit()
+		new.reload()
+		new.submit()
+		self.assertEqual((self._status(p.name), self._status(new.name)), ("Renewal In Progress", "Awaiting Premium"))
+
+		# Default: complete once the premium invoice is submitted.
+		pi = _po_invoice(po.name)
+		pi.bill_no = "REN-PAY"
+		pi.insert()
+		self.assertEqual(self._status(p.name), "Renewal In Progress")  # a draft invoice is not enough
+		pi.submit()
+		self.assertEqual((self._status(p.name), self._status(new.name)), ("Renewed", "Active"))
+		self.assertEqual(get_asset_insurance_status(asset.name)["state"], "Insured")
+
+		# Paid mode: back to waiting until the invoice has no balance.
+		settings = frappe.get_single("Asset Settings")
+		settings.renewal_complete_on = "Premium Invoice Paid"
+		settings.save()
+		self.assertEqual((self._status(p.name), self._status(new.name)), ("Renewal In Progress", "Awaiting Premium"))
+		pe = get_payment_entry("Purchase Invoice", pi.name)
+		pe.reference_no, pe.reference_date = "PAY-1", today()
+		pe.insert()
+		pe.submit()
+		self.assertEqual((self._status(p.name), self._status(new.name)), ("Renewed", "Active"))
+		pe.cancel()
+		self.assertEqual((self._status(p.name), self._status(new.name)), ("Renewal In Progress", "Awaiting Premium"))
+
+		# Cancelling the invoice also reopens the renewal.
+		settings.reload()
+		settings.renewal_complete_on = "Premium Invoice Submitted"
+		settings.save()
+		self.assertEqual(self._status(p.name), "Renewed")
+		pi.reload()
+		pi.cancel()
+		self.assertEqual((self._status(p.name), self._status(new.name)), ("Renewal In Progress", "Awaiting Premium"))
 
 	def test_renewal_via_purchase_order_and_invoice_from_po(self):
 		from erpnext.buying.doctype.purchase_order.purchase_order import make_purchase_invoice
@@ -360,23 +465,12 @@ class TestInsurancePolicy(unittest.TestCase):
 		with self.assertRaises(frappe.ValidationError):
 			raise_purchase_request(p.name, "Material Request")
 
-	def test_opening_release_schedule_totals(self):
-		a, b = make_asset(cost_center=CC_A), make_asset(cost_center=CC_B)
-		start = add_months(getdate(today()).replace(day=1), -3)
-		p = make_policy([a, b], start=start, is_opening="Yes", prepaid_balance_at_go_live=100_000.03,
-			go_live_date=add_months(start, 1))
-		names = generate_release_schedule(p.name)
-		jes = [frappe.get_doc("Journal Entry", n) for n in names]
-		self.assertEqual(len(jes), 12 - 1)
-		total = sum(flt(j.total_credit) for j in jes)
-		self.assertAlmostEqual(total, 100_000.03, places=2)
-		self.assertTrue(all(j.insurance_policy == p.name for j in jes))
-		due = [j for j in jes if getdate(j.posting_date) <= getdate(today())]
-		self.assertTrue(due and all(j.docstatus == 1 for j in due))
-		self.assertTrue(all(j.docstatus == 0 for j in jes if getdate(j.posting_date) > getdate(today())))
-		self.assertTrue(all(getdate(j.posting_date) <= getdate(p.end_date) for j in jes))
-		with self.assertRaises(frappe.ValidationError):
-			generate_release_schedule(p.name)
+	def test_opening_policy_posts_no_journal_entries(self):
+		a = make_asset()
+		p = make_policy([a], is_opening="Yes")
+		self.assertEqual(p.status, "Active")
+		self.assertFalse(frappe.get_all("Journal Entry", {"insurance_policy": p.name}))
+		self.assertFalse(frappe.get_meta("Insurance Policy").has_field("prepaid_balance_at_go_live"))
 
 	def test_role_checks_server_side(self):
 		a = make_asset()
@@ -483,7 +577,8 @@ class TestInsurancePolicy(unittest.TestCase):
 		p.reload()
 		self.assertEqual(p.total_sum_insured, 6_000_000)
 		self.assertGreater(flt(p.endorsements[0].premium_adjustment), 0)
-		self.assertEqual(frappe.db.get_value("Purchase Invoice Item", {"parent": res["reference_name"]}, "cost_center"), CC_B)
+		self.assertEqual(res["reference_doctype"], "Material Request")
+		self.assertEqual(frappe.db.get_value("Material Request Item", {"parent": res["reference_name"]}, "cost_center"), CC_B)
 
 		reverse_endorsement(p.name, res["endorsement_group"])
 		p.reload()
@@ -492,19 +587,26 @@ class TestInsurancePolicy(unittest.TestCase):
 		res = endorse(p.name, "Cancel Policy", frappe.as_json({"endorsement_no": "MED-2", "effective_date": today()}))
 		p.reload()
 		self.assertEqual(p.status, "Cancelled")
-		self.assertEqual(frappe.db.get_value("Purchase Invoice", res["reference_name"], "is_return"), 1)
+		self.assertEqual(res["reference_doctype"], "Journal Entry")
 
 	def test_non_asset_policy_rejects_asset_rows_and_renews(self):
 		with self.assertRaises(frappe.ValidationError):
 			make_policy([make_asset()], insurance_for="Other", policy_type="Medical", cover_description="x", submit=False)
 		p = self._other_policy(start=add_days(today(), -340), end=add_days(today(), 24))
-		res = raise_renewal_request(p.name, "Material Request")
+		res = raise_renewal_request(p.name, "Purchase Order")
 		new = frappe.get_doc("Insurance Policy", res["policy"])
 		self.assertEqual(new.insurance_for, "Other")
 		self.assertEqual(new.total_sum_insured, 5_000_000)
 		self.assertEqual(new.cost_center, CC_B)
 		self.assertFalse(new.insured_assets)
+		frappe.get_doc("Purchase Order", res["procurement_name"]).submit()
+		new.reload()
 		new.submit()
+		self.assertEqual(frappe.db.get_value("Insurance Policy", p.name, "status"), "Renewal In Progress")
+		pi = _po_invoice(res["procurement_name"])
+		pi.bill_no = "REN-OTHER"
+		pi.insert()
+		pi.submit()
 		self.assertEqual(frappe.db.get_value("Insurance Policy", p.name, "status"), "Renewed")
 
 	# ── Connections & Address / Contact ──────────────────────────────────
@@ -556,34 +658,74 @@ class TestInsurancePolicy(unittest.TestCase):
 		self.assertEqual(p.contact_person, contact.name)
 		self.assertEqual(p.contact_email, "claims@insurer.example")
 
-	# ── Procurement document state (Settings) ────────────────────────────
+	# ── Procurement documents open unsaved ───────────────────────────
 
-	def test_procurement_created_as_draft_or_submitted(self):
+	def test_procurement_documents_open_unsaved(self):
 		a = make_asset()
 		old = make_policy([a], start=add_days(today(), -340), end=add_days(today(), 24))
-		frappe.db.set_single_value("Asset Settings", "material_request_status", "Submitted")
-		frappe.clear_document_cache("Asset Settings", "Asset Settings")
-		res = raise_renewal_request(old.name, "Material Request")
-		mr = frappe.get_doc("Material Request", res["procurement_name"])
-		self.assertEqual(mr.docstatus, 1)
-		self.assertAlmostEqual(flt(mr.items[0].rate), flt(old.total_premium))
+		res = api.raise_renewal_request(old.name, "Material Request")
+		mr = res["doc"]
+		self.assertTrue(mr.get("__islocal"))
+		self.assertEqual(mr["doctype"], "Material Request")
+		self.assertEqual(mr["items"][0]["insurance_policy"], res["policy"])
+		self.assertAlmostEqual(flt(mr["items"][0]["rate"]), flt(old.total_premium))
+		# Nothing saved yet: the renewal policy has no procurement and can be requested again.
+		self.assertFalse(frappe.db.get_value("Insurance Policy", res["policy"], "procurement_name"))
+		saved = _save(mr)
+		self.assertEqual(frappe.db.get_value("Insurance Policy", res["policy"], ["procurement_doctype", "procurement_name"]),
+			("Material Request", saved.name))
+		with self.assertRaises(frappe.ValidationError):
+			api.raise_purchase_request(res["policy"], "Material Request")
+		# Deleting the draft request frees the policy to raise another.
+		frappe.delete_doc("Material Request", saved.name)
+		self.assertFalse(frappe.db.get_value("Insurance Policy", res["policy"], "procurement_name"))
+		po = _save(api.raise_purchase_request(res["policy"], "Purchase Order")["doc"])
+		self.assertEqual(frappe.db.get_value("Insurance Policy", res["policy"], "procurement_name"), po.name)
 
-		b = make_asset()
-		old2 = make_policy([b], start=add_days(today(), -340), end=add_days(today(), 24))
-		frappe.db.set_single_value("Asset Settings", "purchase_order_status", "Submitted")
-		frappe.clear_document_cache("Asset Settings", "Asset Settings")
-		res = raise_renewal_request(old2.name, "Purchase Order")
-		po = frappe.get_doc("Purchase Order", res["procurement_name"])
-		self.assertEqual(po.docstatus, 1)
-		self.assertAlmostEqual(flt(po.grand_total), flt(old2.total_premium), places=2)
+	def test_endorsement_starts_procurement_and_can_be_raised_later(self):
+		a, b = make_asset(), make_asset()
+		p = make_policy([a], start=add_days(today(), -100), end=add_days(today(), 265))
+		res = api.endorse(p.name, "Add Assets", frappe.as_json({
+			"endorsement_no": "END-MR", "effective_date": today(), "assets": [{"asset": b.name, "sum_insured": 500000}]}))
+		self.assertGreater(res["total"], 0)
+		from upande_asset.upande_asset.insurance.premium import endorsement_documents
 
-		frappe.db.set_single_value("Asset Settings", "purchase_order_status", "Draft")
-		frappe.clear_document_cache("Asset Settings", "Asset Settings")
-		c = make_asset()
-		old3 = make_policy([c], start=add_days(today(), -340), end=add_days(today(), 24))
-		res = raise_renewal_request(old3.name, "Purchase Order")
-		self.assertEqual(frappe.db.get_value("Purchase Order", res["procurement_name"], "docstatus"), 0)
+		self.assertEqual(endorsement_documents(p.name, res["endorsement_group"]), [])  # endorsing creates nothing
+		ctx = api.get_policy_context(p.name)
+		self.assertEqual([e["group"] for e in ctx["endorsements_without_document"]], [res["endorsement_group"]])
 
+		po = _save(api.make_endorsement_document(p.name, res["endorsement_group"], "Purchase Order"))
+		self.assertEqual(po.items[0].insurance_endorsement, res["endorsement_group"])
+		self.assertEqual(api.get_policy_context(p.name)["endorsements_without_document"], [])
+		log = frappe.get_doc("Insurance Policy", p.name).endorsements[0]
+		self.assertEqual((log.reference_doctype, log.reference_name), ("Purchase Order", po.name))
+		with self.assertRaises(frappe.ValidationError):
+			api.make_endorsement_document(p.name, res["endorsement_group"], "Purchase Order")
+
+		# The invoice made from the PO is an endorsement invoice, not the policy premium.
+		po.submit()
+		pi = frappe.get_doc(_po_invoice(po.name))
+		pi.insert()
+		self.assertEqual(pi.items[0].insurance_endorsement, res["endorsement_group"])
+		self.assertEqual(getdate(pi.items[0].service_start_date), getdate(today()))
+		pi.submit()
+		self.assertNotEqual(frappe.db.get_value("Insurance Policy", p.name, "purchase_invoice"), pi.name)
+
+		# Submitted documents block reversal.
+		with self.assertRaises(frappe.ValidationError):
+			reverse_endorsement(p.name, res["endorsement_group"])
+
+	def test_premium_follows_submitted_invoice(self):
+		p = make_policy([make_asset()])
+		pi = frappe.get_doc("Purchase Invoice", make_premium_invoice(p.name))
+		target = flt(p.total_premium) + 1234.5
+		pi.items[0].rate = flt(pi.items[0].rate) + 1234.5
+		pi.save()
+		pi.submit()
+		p.reload()
+		self.assertEqual(p.purchase_invoice, pi.name)
+		self.assertAlmostEqual(flt(p.total_premium), target, places=2)
+		self.assertAlmostEqual(flt(p.basic_premium) + flt(p.levies), target, places=2)
 
 	# ── Insurance digest schedule ────────────────────────────────────────
 
@@ -678,3 +820,109 @@ class TestInsurancePolicyType(unittest.TestCase):
 		make_policy([a], policy_type=other)
 		p_mb = make_policy([a], policy_type=mb)
 		self.assertEqual(resolve_policy(a.name, today(), "_Test Pump Failure"), p_mb.name)
+
+
+class TestEndorsementRequests(unittest.TestCase):
+	"""Request → insurer confirms → applied; withdraw; disposal and total-loss claims."""
+
+	@classmethod
+	def setUpClass(cls):
+		bootstrap()
+
+	def tearDown(self):
+		frappe.db.rollback()
+
+	def test_request_does_not_change_cover_until_confirmed(self):
+		a, b = make_asset(), make_asset()
+		p = make_policy([a])
+		res = api.endorse(p.name, "Add Assets", frappe.as_json({"effective_date": today(),
+			"assets": [{"asset": b.name, "sum_insured": 400_000}]}))  # no endorsement number: a request
+		self.assertEqual(res["status"], "Requested")
+		p.reload()
+		self.assertEqual([r.asset for r in p.insured_assets], [a.name])
+		self.assertEqual((p.endorsements[0].status, p.endorsements[0].endorsement_no), ("Requested", None))
+		self.assertEqual(frappe.call("upande_asset.upande_asset.insurance.asset.get_asset_insurance_status", asset=b.name)["state"],
+			"Cover requested")
+		self.assertTrue(frappe.db.exists("ToDo", {"reference_name": p.name, "status": "Open",
+			"description": ["like", f"%[req:{res['endorsement_group']}]%"]}))
+		# Procurement is asked for the premium while the request is with the insurer.
+		mr = _save(api.make_endorsement_document(p.name, res["endorsement_group"], "Material Request"))
+		self.assertEqual(mr.items[0].insurance_endorsement, res["endorsement_group"])
+		with self.assertRaises(frappe.ValidationError):  # one request per asset at a time
+			api.endorse(p.name, "Add Assets", frappe.as_json({"assets": [{"asset": b.name, "sum_insured": 1}]}))
+
+		api.confirm_endorsement(p.name, res["endorsement_group"], frappe.as_json({
+			"endorsement_no": "INS-77", "effective_date": today(), "premium_adjustment": 9_999}))
+		p.reload()
+		self.assertIn(b.name, [r.asset for r in p.insured_assets if r.row_status == "Active"])
+		log = p.endorsements[0]
+		self.assertEqual((log.status, log.endorsement_no, flt(log.premium_adjustment)), ("Active", "INS-77", 9_999))
+		self.assertEqual((log.reference_doctype, log.reference_name), ("Material Request", mr.name))  # kept from the request
+		self.assertFalse(frappe.db.exists("ToDo", {"reference_name": p.name, "status": "Open",
+			"description": ["like", f"%[req:{res['endorsement_group']}]%"]}))
+
+	def test_withdraw_request_deletes_its_draft_request(self):
+		a, b = make_asset(), make_asset()
+		p = make_policy([a])
+		res = api.endorse(p.name, "Add Assets", frappe.as_json({"assets": [{"asset": b.name, "sum_insured": 400_000}]}))
+		mr = _save(api.make_endorsement_document(p.name, res["endorsement_group"], "Material Request"))
+		api.withdraw_endorsement(p.name, res["endorsement_group"], "Manager changed mind")
+		p.reload()
+		self.assertEqual(p.endorsements[0].status, "Withdrawn")
+		self.assertFalse(frappe.db.exists("Material Request", mr.name))
+		self.assertEqual([r.asset for r in p.insured_assets], [a.name])
+
+	def test_disposal_raises_removal_request(self):
+		from upande_asset.upande_asset.insurance.asset import notify_disposed_asset
+
+		a, b = make_asset(), make_asset()
+		p = make_policy([a, b])
+		notify_disposed_asset(b.name, "sold")
+		p.reload()
+		req = [e for e in p.endorsements if e.status == "Requested"]
+		self.assertEqual([(e.endorsement_type, e.asset) for e in req], [("Remove Assets", b.name)])
+		self.assertLess(flt(req[0].premium_adjustment), 0)  # estimated refund
+		notify_disposed_asset(b.name, "sold")  # not twice
+		self.assertEqual(len([e for e in frappe.get_doc("Insurance Policy", p.name).endorsements if e.status == "Requested"]), 1)
+		self.assertEqual(next(r for r in p.insured_assets if r.asset == b.name).row_status, "Active")  # covered until confirmed
+
+	def test_total_loss_claim_removes_asset_and_withdraws_request(self):
+		from upande_asset.upande_asset.insurance.endorsement import remove_for_claim, restore_for_claim
+
+		a, b = make_asset(), make_asset()
+		p = make_policy([a, b])
+		api.endorse(p.name, "Remove Assets", frappe.as_json({"assets": [{"asset": b.name}]}))  # pending removal
+		claim = frappe.get_doc({"doctype": "Insurance Claim", "name": "CLAIM-X", "asset": b.name, "company": COMPANY,
+			"policy": p.name, "incident_date": add_days(today(), -2)})
+		claim.db_insert()  # the claim's own flow is tested in test_insurance_claim
+		remove_for_claim(claim)
+		p.reload()
+		row = next(r for r in p.insured_assets if r.asset == b.name)
+		self.assertEqual((row.row_status, getdate(row.removed_on)), ("Removed", getdate(add_days(today(), -2))))
+		self.assertEqual(sorted(e.status for e in p.endorsements), ["Active", "Withdrawn"])
+		active = next(e for e in p.endorsements if e.status == "Active")
+		self.assertEqual((flt(active.premium_adjustment), active.reference_doctype, active.reference_name), (0, "Insurance Claim", "CLAIM-X"))
+		restore_for_claim(claim)
+		p.reload()
+		self.assertEqual(next(r for r in p.insured_assets if r.asset == b.name).row_status, "Active")
+
+	def test_suggested_premium_per_asset_reaches_procurement(self):
+		a, b, c = make_asset(), make_asset(), make_asset()
+		p = make_policy([a])
+		res = api.endorse(p.name, "Add Assets", frappe.as_json({"assets": [
+			{"asset": b.name, "sum_insured": 400_000, "premium": 30_000},
+			{"asset": c.name, "sum_insured": 250_000},  # blank: pro-rata
+		]}))
+		p.reload()
+		logs = {e.asset: e for e in p.endorsements}
+		self.assertEqual(flt(logs[b.name].premium_adjustment), 30_000)
+		self.assertGreater(flt(logs[c.name].premium_adjustment), 0)
+		mr = api.make_endorsement_document(p.name, res["endorsement_group"], "Material Request")
+		lines = {r["description"].split("(")[1].split(")")[0]: r for r in mr["items"]}
+		self.assertEqual(flt(lines[b.name]["rate"]), 30_000)
+		self.assertIn("Add ", lines[b.name]["description"])
+		self.assertIn("sum insured", lines[b.name]["description"])
+		# Confirmed without a new figure: the request's amounts, asset by asset.
+		api.confirm_endorsement(p.name, res["endorsement_group"], frappe.as_json({"endorsement_no": "E-9"}))
+		p.reload()
+		self.assertEqual(flt(next(e for e in p.endorsements if e.asset == b.name).premium_adjustment), 30_000)

@@ -5,10 +5,22 @@
 import unittest
 
 import frappe
-from frappe.utils import flt, today
+from frappe.utils import add_days, date_diff, flt, getdate, today
 
-from upande_asset.upande_asset.insurance.test_fixtures import COMPANY, INSURER, bootstrap, make_asset, set_parts_warehouse
+from upande_asset.upande_asset.insurance.test_fixtures import CC_A, CC_B, COMPANY, INSURER, bootstrap, make_asset, set_parts_warehouse
+from upande_asset.upande_asset.doctype.asset_service_record import asset_service_record as api
 from upande_asset.upande_asset.maintenance import records_for_log
+
+
+def make_material_request(record, purpose):
+	"""Requests open unsaved; save them as the user would."""
+	return frappe.get_doc(api.make_material_request(record, purpose)).insert().name
+
+
+def make_material_issue(record):
+	se = frappe.get_doc(api.make_material_issue(record)).insert()
+	se.submit()
+	return se.name
 
 
 def make_service_invoice(amount):
@@ -153,10 +165,55 @@ class TestServiceRecordMaintenance(unittest.TestCase):
 		self.assertEqual(str(task.last_completion_date), today())
 		self.assertGreater(str(task.next_due_date), today())
 
-		# ERPNext opened the next occurrence → it has its own Pending record.
+		# ERPNext opened the next occurrence. Its record is created only within the lead time
+		# (Asset Settings → service_record_lead_days) – by the daily job once it comes close.
 		nxt = self._open_log(am)
 		self.assertTrue(nxt and nxt != log)
+		due = frappe.db.get_value("Asset Maintenance Log", nxt, "due_date")
+		self.assertGreater(date_diff(due, today()), 14)
+		self.assertEqual(records_for_log(nxt), [])
+		frappe.db.set_single_value("Asset Settings", "service_record_lead_days", date_diff(due, today()))
+		try:
+			from upande_asset.upande_asset.maintenance import create_due_service_records
+
+			create_due_service_records()
+		finally:
+			frappe.db.set_single_value("Asset Settings", "service_record_lead_days", 14)
 		self.assertEqual(frappe.db.get_value("Asset Service Record", records_for_log(nxt)[0], "status"), "Pending")
+
+	def test_reminders_before_due_and_overdue(self):
+		from upande_asset.upande_asset.maintenance import send_service_reminders
+
+		asset = make_asset()
+		am = self._maintenance(asset)
+		rec = records_for_log(self._open_log(am))[0]
+		settings = {"service_reminder_days": "7,3", "service_overdue_reminder_days": 2, "notify_service_assignee": 1}
+		for k, v in settings.items():
+			frappe.db.set_single_value("Asset Settings", k, v)
+		frappe.clear_document_cache("Asset Settings", "Asset Settings")
+
+		def sent():
+			return frappe.db.get_value("Asset Service Record", rec, ["last_reminder_days", "last_reminder_on"])
+
+		frappe.db.set_value("Asset Service Record", rec, {"service_date": add_days(today(), 5), "last_reminder_days": 0,
+			"last_reminder_on": None})
+		send_service_reminders()
+		self.assertEqual(sent()[0], 7)
+		send_service_reminders()  # same band → not sent again
+		self.assertEqual(sent()[0], 7)
+		frappe.db.set_value("Asset Service Record", rec, "service_date", add_days(today(), 2))
+		send_service_reminders()
+		self.assertEqual(sent()[0], 3)
+		# Overdue: reminded, then again only after the interval.
+		frappe.db.set_value("Asset Service Record", rec, "service_date", add_days(today(), -1))
+		send_service_reminders()
+		self.assertEqual(sent(), (-1, getdate(today())))
+		frappe.db.set_value("Asset Service Record", rec, "last_reminder_on", add_days(today(), -1))
+		send_service_reminders()
+		self.assertEqual(sent()[1], getdate(add_days(today(), -1)))
+		frappe.db.set_value("Asset Service Record", rec, "last_reminder_on", add_days(today(), -2))
+		send_service_reminders()
+		self.assertEqual(sent()[1], getdate(today()))
 
 	def test_certificate_required(self):
 		asset = make_asset()
@@ -214,7 +271,9 @@ class TestServiceRecordMaintenance(unittest.TestCase):
 		am = self._maintenance(asset, service_type=st.name)
 		rec = frappe.get_doc("Asset Service Record", records_for_log(self._open_log(am))[0])
 		self.assertEqual((rec.service_type, rec.service_by, rec.supplier), (st.name, "External", INSURER))
-		self.assertEqual([(m.item_code, flt(m.estimated_rate)) for m in rec.materials], [(svc, 42_000)])
+		self.assertEqual([m.item_code for m in rec.materials], [svc])
+		# The Service Type's usual price is the guide rate on the purchase request.
+		self.assertEqual(flt(api.make_material_request(rec.name, "Purchase")["items"][0]["rate"]), 42_000)
 
 		# Manual record: defaults fill only what is empty
 		manual = frappe.get_doc({"doctype": "Asset Service Record", "title": "Manual", "asset": asset.name, "company": COMPANY,
@@ -257,8 +316,6 @@ class TestServiceRecordMaterials(unittest.TestCase):
 	def test_internal_parts_issued_from_stores(self):
 		from erpnext.stock.doctype.material_request.material_request import make_stock_entry
 
-		from upande_asset.upande_asset.doctype.asset_service_record.asset_service_record import make_material_request
-
 		store = frappe.db.get_value("Warehouse", {"company": COMPANY, "is_group": 0, "warehouse_name": "Stores"}, "name")
 		part = "_Test Hydraulic Hose"
 		if not frappe.db.exists("Item", part):
@@ -275,12 +332,14 @@ class TestServiceRecordMaterials(unittest.TestCase):
 		mr = frappe.get_doc("Material Request", mr_name)
 		self.assertEqual(mr.material_request_type, "Material Issue")
 		self.assertEqual(mr.items[0].asset_service_record, rec.name)
+		self.assertEqual((rec.cost_center, mr.items[0].cost_center), (CC_A, CC_A))  # the asset's, not the company's
 		self.assertEqual(frappe.db.get_value("Asset Service Record", rec.name, "status"), "In Progress")
 		self.assertEqual(frappe.db.get_value("Asset Service Material", rec.materials[0].name, "material_request"), mr_name)
 
 		mr.submit()
 		se = make_stock_entry(mr.name)
 		self.assertEqual(se.items[0].asset_service_record, rec.name)  # mapped by ERPNext
+		self.assertEqual(se.items[0].cost_center, CC_A)
 		se.insert()
 		se.submit()
 		rec.reload()
@@ -294,12 +353,10 @@ class TestServiceRecordMaterials(unittest.TestCase):
 		from erpnext.buying.doctype.purchase_order.purchase_order import make_purchase_invoice
 		from erpnext.stock.doctype.material_request.material_request import make_purchase_order
 
-		from upande_asset.upande_asset.doctype.asset_service_record.asset_service_record import make_material_request
-
 		svc = "_Test Workshop Service"
 		if not frappe.db.exists("Item", svc):
 			frappe.get_doc({"doctype": "Item", "item_code": svc, "item_group": "Services", "stock_uom": "Nos", "is_stock_item": 0}).insert()
-		rec = self._record("External", supplier=INSURER, materials=[{"item_code": svc, "qty": 1, "estimated_rate": 15000}])
+		rec = self._record("External", supplier=INSURER, materials=[{"item_code": svc, "qty": 1}])
 		with self.assertRaises(frappe.ValidationError):
 			make_material_request(rec.name, "Material Issue")  # not for external work
 		mr = frappe.get_doc("Material Request", make_material_request(rec.name, "Purchase"))
@@ -361,7 +418,7 @@ class TestServiceRecordDirectIssue(unittest.TestCase):
 			frappe.get_doc({"doctype": "Item", "item_code": part, "item_group": "All Item Groups", "stock_uom": "Nos", "is_stock_item": 1}).insert()
 		frappe.get_doc({"doctype": "Stock Entry", "stock_entry_type": "Material Receipt", "company": COMPANY,
 			"items": [{"item_code": part, "qty": 12, "t_warehouse": store, "basic_rate": 450}]}).insert().submit()
-		frappe.db.set_single_value("Asset Settings", {"allow_direct_material_issue": allow, "direct_issue_status": "Submitted"})
+		frappe.db.set_single_value("Asset Settings", {"allow_direct_material_issue": allow})
 		set_parts_warehouse(store)
 		frappe.clear_document_cache("Asset Settings", "Asset Settings")
 		if not frappe.db.exists("Asset Service Type", "_Test Servicing"):
@@ -377,8 +434,6 @@ class TestServiceRecordDirectIssue(unittest.TestCase):
 		self.assertEqual(flt(rec.materials[0].actual_qty), 12)
 
 	def test_direct_issue_feeds_materials_cost(self):
-		from upande_asset.upande_asset.doctype.asset_service_record.asset_service_record import make_material_issue, make_material_request
-
 		rec, store = self._setup()
 		se = frappe.get_doc("Stock Entry", make_material_issue(rec.name))
 		self.assertEqual((se.purpose, se.docstatus, se.items[0].s_warehouse, se.items[0].asset_service_record),
@@ -390,14 +445,22 @@ class TestServiceRecordDirectIssue(unittest.TestCase):
 		with self.assertRaises(frappe.ValidationError):
 			make_material_request(rec.name, "Purchase")  # row already issued
 
+	def test_cost_center_set_by_hand_is_charged(self):
+		rec, _store = self._setup()
+		self.assertEqual(rec.cost_center, CC_A)
+		rec.cost_center = CC_B
+		rec.save()
+		self.assertEqual(rec.cost_center, CC_B)  # kept, the asset did not change
+		se = frappe.get_doc("Stock Entry", make_material_issue(rec.name))
+		self.assertEqual(se.items[0].cost_center, CC_B)
+		self.assertEqual({g.cost_center for g in frappe.get_all("GL Entry", {"voucher_no": se.name, "is_cancelled": 0}, ["cost_center"])}, {CC_B})
+
 		se.cancel()
 		rec.reload()
 		self.assertFalse(rec.materials[0].stock_entry)  # freed for a new request
 		self.assertEqual(flt(rec.materials_cost), 0)
 
 	def test_issued_rows_are_locked(self):
-		from upande_asset.upande_asset.doctype.asset_service_record.asset_service_record import make_material_issue
-
 		rec, _store = self._setup()
 		make_material_issue(rec.name)
 		rec.reload()
@@ -410,8 +473,37 @@ class TestServiceRecordDirectIssue(unittest.TestCase):
 			rec.save()
 
 	def test_direct_issue_needs_the_setting(self):
-		from upande_asset.upande_asset.doctype.asset_service_record.asset_service_record import make_material_issue
-
 		rec, _store = self._setup(allow=0)
 		with self.assertRaises(frappe.ValidationError):
 			make_material_issue(rec.name)
+
+	def test_consumed_stock_items_when_material_requests_off(self):
+		"""Setting off: parts recorded as on ERPNext's Asset Repair, issued when the record completes."""
+		rec, store = self._setup()
+		frappe.db.set_single_value("Asset Settings", "repair_material_requests", 0)
+		frappe.clear_document_cache("Asset Settings", "Asset Settings")
+		try:
+			with self.assertRaises(frappe.ValidationError):
+				api.make_material_request(rec.name, "Material Issue")  # the Materials route is off
+			rec.reload()
+			rec.materials = []
+			rec.append("stock_items", {"item_code": rec_part(), "warehouse": store, "consumed_quantity": 3})
+			rec.cost_center = CC_B
+			rec.save()
+			self.assertEqual(flt(rec.stock_items[0].valuation_rate), 450)  # fetched
+			self.assertEqual((flt(rec.consumed_items_cost), flt(rec.total_service_cost)), (1350, 1350))
+			rec.submit()
+			se = frappe.get_doc("Stock Entry", rec.consumption_stock_entry)
+			self.assertEqual((se.docstatus, se.purpose, se.items[0].s_warehouse, se.items[0].cost_center, se.cost_center),
+				(1, "Material Issue", store, CC_B, CC_B))
+			self.assertEqual(flt(frappe.db.get_value("Bin", {"item_code": rec_part(), "warehouse": store}, "actual_qty")), 9)
+			rec.reload()
+			rec.cancel()
+			self.assertEqual(frappe.db.get_value("Stock Entry", se.name, "docstatus"), 2)
+		finally:
+			frappe.db.set_single_value("Asset Settings", "repair_material_requests", 1)
+			frappe.clear_document_cache("Asset Settings", "Asset Settings")
+
+
+def rec_part():
+	return "_Test Grease Cartridge"

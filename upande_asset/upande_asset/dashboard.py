@@ -12,6 +12,8 @@ import frappe
 from frappe import _
 from frappe.utils import add_days, cint, date_diff, flt, fmt_money, get_first_day, get_last_day, getdate, nowdate, today
 
+from upande_asset.upande_asset.insurance.utils import LIVE_POLICY_STATUSES
+
 INACTIVE_ASSET = ("Scrapped", "Sold", "Cancelled", "Draft")
 OPEN_CLAIM = ("Draft", "Recorded", "Under Assessment", "Approved", "Partly Settled")
 
@@ -201,7 +203,7 @@ def _collect(company, from_date=None, to_date=None, dimension=None, dimension_va
 		for p in policies:
 			if p.name in by_policy:
 				p.total_sum_insured = by_policy[p.name]
-	live = [p for p in policies if p.status in ("Active", "Expiring")]
+	live = [p for p in policies if p.status in LIVE_POLICY_STATUSES]
 	expiring = sorted([p for p in live if date_diff(p.end_date, td) <= 60], key=lambda p: p.end_date)
 	for p in expiring:
 		p["days"] = date_diff(p.end_date, td)
@@ -365,7 +367,7 @@ def get_events(company=None, start=None, end=None, dimension=None, dimension_val
 			users = []
 		return users[0] if users else row.get("owner")
 
-	for p in _list("Insurance Policy", filters={"company": company, "docstatus": 1, "status": ["in", ["Active", "Expiring", "Expired"]],
+	for p in _list("Insurance Policy", filters={"company": company, "docstatus": 1, "status": ["in", ["Active", "Expiring", "Expired", "Renewal In Progress"]],
 			"end_date": ["between", [start, end]]},
 			fields=["name", "policy_number", "policy_type", "insurer_name", "end_date", "status", "renewed_to", "_assign", "owner"]):
 		if dim_filter and not frappe.db.exists("Insurance Policy Asset", {"parent": p.name, "asset": ["in", list(asset_names) or [""]]}):

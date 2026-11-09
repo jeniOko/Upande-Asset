@@ -141,11 +141,10 @@ def bootstrap():
 	settings.expiring_threshold_days = 30
 	settings.claim_followup_days = 14
 	settings.renewal_procurement = "Material Request"
-	settings.endorsements_via_po = 0
 	settings.auto_create_service_records = 1
-	settings.material_request_status = "Draft"
-	settings.maintenance_mr_status = "Draft"
-	settings.purchase_order_status = "Draft"
+	settings.repair_material_requests = 1
+	settings.parts_purchase_document = "Material Request"
+	settings.service_record_lead_days = 14
 	settings.split_premium_by_cost_center = 1
 	row = next((r for r in settings.company_defaults if r.company == COMPANY), None) or settings.append("company_defaults", {"company": COMPANY})
 	row.update(accounts)

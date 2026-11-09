@@ -2,7 +2,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.query_builder import DocType
-from frappe.utils import flt, get_link_to_form, getdate, nowdate
+from frappe.utils import flt, get_link_to_form, getdate, nowdate, nowtime
 
 from upande_asset.upande_asset.repair_materials import default_parts_warehouse
 
@@ -22,17 +22,32 @@ class AssetServiceRecord(Document):
 		from upande_asset.upande_asset.insurance.utils import get_settings
 
 		s = get_settings()
+		from upande_asset.upande_asset.repair_materials import enabled
+
+		self.set_onload("materials_enabled", enabled())
+		from upande_asset.upande_asset.materials import client_options
+
+		self.set_onload("materials_options", client_options())
 		self.set_onload("allow_direct_material_issue", int(s.allow_direct_material_issue or 0))
 		self.set_onload("service_materials_warehouse", default_parts_warehouse(self.company))
+		from upande_asset.upande_asset.materials import refresh_rows
+
+		refresh_rows(self)  # live stock and status on the Materials rows
 
 	def validate(self):
 		from upande_asset.upande_asset.repair_materials import validate_locked_rows
 
+		from upande_asset.upande_asset.dimensions import default_from_asset
+
 		validate_locked_rows(self, "materials")
+		default_from_asset(self)
 		self._apply_service_type_defaults()
-		self._set_material_rows()
+		from upande_asset.upande_asset.materials import refresh_rows
+
+		refresh_rows(self)
 		self._validate_maintenance_log()
 		self._validate_purchase_invoices()
+		self._validate_stock_items()
 		self._calculate_total_cost()
 		if self.docstatus == 0 and self.status not in ("Pending", "In Progress"):
 			self.status = "Pending"
@@ -55,6 +70,7 @@ class AssetServiceRecord(Document):
 		self.completed_by = frappe.session.user
 
 	def on_submit(self):
+		self._issue_stock_items()
 		if self.tasks:
 			from upande_asset.upande_asset.maintenance import complete_maintenance_logs
 
@@ -65,6 +81,7 @@ class AssetServiceRecord(Document):
 
 	def on_cancel(self):
 		self.db_set("status", "Cancelled")
+		self._cancel_stock_issue()
 		done = [r.asset_maintenance_log for r in self.tasks
 			if frappe.db.get_value("Asset Maintenance Log", r.asset_maintenance_log, "docstatus") == 1]
 		if done:
@@ -73,23 +90,6 @@ class AssetServiceRecord(Document):
 					", ".join(get_link_to_form("Asset Maintenance Log", n) for n in done)),
 				indicator="orange",
 			)
-
-	def _set_material_rows(self):
-		"""Default warehouse and current Actual Qty on each Materials & Services row."""
-		from erpnext.stock.get_item_details import _get_bin_details
-
-		from upande_asset.upande_asset.insurance.utils import get_settings
-
-		default_wh = default_parts_warehouse(self.company)
-		for row in self.materials:
-			if not row.item_code:
-				continue
-			is_stock = frappe.get_cached_value("Item", row.item_code, "is_stock_item")
-			row.is_stock_item = is_stock
-			if is_stock and not row.warehouse and default_wh:
-				row.warehouse = default_wh
-			row.actual_qty = flt((_get_bin_details(row.item_code, row.warehouse, self.company) or {}).get("actual_qty")) \
-				if is_stock and row.warehouse else 0
 
 	def _apply_service_type_defaults(self):
 		"""Suggest Service By / Supplier / service item from the Service Type, without
@@ -178,12 +178,62 @@ class AssetServiceRecord(Document):
 				)
 
 	def _calculate_total_cost(self):
-		# Actual values only: issued stock (Stock Entries) + invoice rows. Estimated rates are
-		# only a guide copied onto Material Requests.
+		# Issued stock (Stock Entries) + invoice rows + Consumed Stock Items (as on Asset Repair).
 		if not self.is_new():
 			self.materials_cost = issued_materials_value(self.name)
 		self.services_cost = sum(flt(row.repair_cost) for row in self.invoices)
-		self.total_service_cost = flt(self.services_cost) + flt(self.materials_cost)
+		self.total_service_cost = flt(self.services_cost) + flt(self.materials_cost) + flt(self.consumed_items_cost)
+
+	# ── Consumed Stock Items (ERPNext Asset Repair's way, used when Material Requests are off) ──
+
+	def _validate_stock_items(self):
+		total = 0
+		for row in self.get("stock_items") or []:
+			item = frappe.get_cached_value("Item", row.item_code, ["is_stock_item", "has_serial_no", "has_batch_no"], as_dict=True)
+			if not item or not item.is_stock_item:
+				frappe.throw(_("Row {0}: {1} is not a stock item. Add services through Service Invoices.").format(row.idx, row.item_code))
+			if (item.has_serial_no or item.has_batch_no) and not row.serial_and_batch_bundle:
+				frappe.throw(_("Row {0}: {1} is tracked by serial / batch number. Issue it with a Stock Entry instead.").format(
+					row.idx, row.item_code), title=_("Serial / Batch Item"))
+			if flt(row.consumed_quantity) <= 0:
+				frappe.throw(_("Row {0}: enter the Consumed Quantity of {1}.").format(row.idx, row.item_code))
+			if not flt(row.valuation_rate) and row.warehouse:
+				from erpnext.stock.utils import get_incoming_rate
+
+				row.valuation_rate = flt(get_incoming_rate({"item_code": row.item_code, "warehouse": row.warehouse,
+					"qty": flt(row.consumed_quantity), "company": self.company, "posting_date": nowdate(),
+					"posting_time": nowtime()}, raise_error_if_no_rate=False))
+			row.total_value = flt(row.valuation_rate) * flt(row.consumed_quantity)
+			total += row.total_value
+		self.consumed_items_cost = total
+
+	def _issue_stock_items(self):
+		if not self.get("stock_items"):
+			return
+		from upande_asset.upande_asset.dimensions import get_dimensions
+
+		se = frappe.get_doc({
+			"doctype": "Stock Entry", "stock_entry_type": "Material Issue", "purpose": "Material Issue", "company": self.company,
+			"remarks": _("Stock consumed on Asset Service Record {0} ({1})").format(self.name, self.asset),
+			**get_dimensions(self, "Stock Entry"),
+		})
+		dims = get_dimensions(self, "Stock Entry Detail")
+		for row in self.stock_items:
+			se.append("items", {"s_warehouse": row.warehouse, "item_code": row.item_code, "qty": row.consumed_quantity,
+				"basic_rate": row.valuation_rate, "serial_and_batch_bundle": row.serial_and_batch_bundle, **dims})
+		se.insert()
+		se.submit()
+		self.db_set("consumption_stock_entry", se.name)
+		# The entry's actual valuation is the cost.
+		actual = flt(sum(flt(d.amount) for d in se.items))
+		if actual != flt(self.consumed_items_cost):
+			self.db_set({"consumed_items_cost": actual,
+				"total_service_cost": flt(self.services_cost) + flt(self.materials_cost) + actual})
+
+	def _cancel_stock_issue(self):
+		name = self.get("consumption_stock_entry")
+		if name and frappe.db.get_value("Stock Entry", name, "docstatus") == 1:
+			frappe.get_doc("Stock Entry", name).cancel()
 
 
 def available_amount(purchase_invoice, expense_account, exclude=None):
@@ -252,65 +302,20 @@ def get_unallocated_cost(purchase_invoice, expense_account, service_record=None)
 # ── Materials: Material Requests, issues and invoices that feed the record ────
 
 
-def _purposes(service_by):
-	return ("Purchase",) if service_by == "External" else ("Material Issue", "Purchase")
+@frappe.whitelist()
+def make_material_request(service_record, purpose, rows=None):
+	"""Unsaved Material Request for the Materials rows (see materials.py)."""
+	from upande_asset.upande_asset.materials import make_material_request as _make
+
+	return _make("Asset Service Record", service_record, purpose, rows)
 
 
 @frappe.whitelist()
-def make_material_request(service_record, purpose, rows=None):
-	"""Material Request from the record's Materials & Services rows.
+def make_material_issue(service_record, rows=None):
+	"""Unsaved Material Issue for parts the workshop already holds (see materials.py)."""
+	from upande_asset.upande_asset.materials import make_material_issue as _make
 
-	Internal work: Material Issue (parts from stores) or Purchase (parts to buy).
-	External work: Purchase (the service itself, e.g. a supplier's service item).
-	Each MR row carries asset_service_record, which ERPNext's own mappers copy onto the
-	Stock Entry / Purchase Order / Purchase Invoice rows made from it."""
-	rec = frappe.get_doc("Asset Service Record", service_record)
-	rec.check_permission("write" if rec.docstatus == 0 else "read")
-	frappe.has_permission("Material Request", "create", throw=True)
-	if rec.docstatus == 2:
-		frappe.throw(_("The service record is cancelled."))
-	if purpose not in _purposes(rec.service_by):
-		frappe.throw(_("{0} is not available for {1} service.").format(_(purpose), _(rec.service_by or "")))
-	names = set(frappe.parse_json(rows) or []) if rows else None
-	lines = [r for r in rec.materials if not r.material_request and not r.stock_entry and (names is None or r.name in names)]
-	if not lines:
-		frappe.throw(_("Add rows to Materials & Services (without a Material Request yet) first."))
-
-	from upande_asset.upande_asset.insurance.utils import get_settings
-
-	default_wh = default_parts_warehouse(rec.company)
-	due = min([getdate(t.due_date) for t in rec.tasks if t.due_date] or [getdate(rec.service_date or nowdate())])
-	schedule = max(due, getdate(nowdate()))
-	mr = frappe.new_doc("Material Request")
-	mr.update({"material_request_type": purpose, "company": rec.company, "transaction_date": nowdate(), "schedule_date": schedule})
-	for r in lines:
-		warehouse = r.warehouse or default_wh
-		if purpose == "Material Issue" and not warehouse:
-			frappe.throw(_("Row {0}: set the Warehouse to issue {1} from.").format(r.idx, r.item_code))
-		stock_uom = frappe.db.get_value("Item", r.item_code, "stock_uom")
-		uom = r.uom or stock_uom
-		factor = 1
-		if uom != stock_uom:
-			from erpnext.stock.get_item_details import get_conversion_factor
-
-			factor = flt((get_conversion_factor(r.item_code, uom) or {}).get("conversion_factor")) or 1
-		mr.append("items", {
-			"item_code": r.item_code, "qty": r.qty, "uom": uom, "stock_uom": stock_uom, "conversion_factor": factor,
-			"warehouse": warehouse, "schedule_date": schedule, "rate": r.estimated_rate,
-			"description": f"{r.item_name or r.item_code} – {rec.title} ({rec.name})",
-			"asset_service_record": rec.name,
-		})
-	mr.insert()
-	if (get_settings().maintenance_mr_status or "Draft") == "Submitted":
-		from frappe.model.workflow import get_workflow_name
-
-		if not get_workflow_name("Material Request"):
-			mr.submit()
-	for r in lines:
-		frappe.db.set_value("Asset Service Material", r.name, "material_request", mr.name, update_modified=False)
-	if rec.docstatus == 0 and rec.status == "Pending":
-		frappe.db.set_value("Asset Service Record", rec.name, "status", "In Progress", update_modified=False)
-	return mr.name
+	return _make("Asset Service Record", service_record, rows)
 
 
 @frappe.whitelist()
@@ -352,8 +357,9 @@ def recompute_materials_cost(record_name):
 	invoices = flt(frappe.db.sql(
 		"select sum(repair_cost) from `tabAsset Repair Purchase Invoice` where parenttype='Asset Service Record' and parent=%s",
 		record_name)[0][0])
+	consumed = flt(frappe.db.get_value("Asset Service Record", record_name, "consumed_items_cost"))
 	frappe.db.set_value("Asset Service Record", record_name,
-		{"materials_cost": flt(issued), "services_cost": invoices, "total_service_cost": invoices + flt(issued)},
+		{"materials_cost": flt(issued), "services_cost": invoices, "total_service_cost": invoices + flt(issued) + consumed},
 		update_modified=False)
 
 
@@ -406,8 +412,10 @@ def apply_service_type_defaults(rec, service_type):
 	if rec.get("service_by") == "External":
 		if not rec.get("supplier") and st.default_supplier:
 			rec.supplier = st.default_supplier
-		if st.default_service_item and not any(r.item_code == st.default_service_item for r in rec.get("materials") or []):
-			rec.append("materials", {"item_code": st.default_service_item, "qty": 1, "estimated_rate": st.default_service_rate,
+		from upande_asset.upande_asset.repair_materials import enabled
+
+		if enabled() and st.default_service_item and not any(r.item_code == st.default_service_item for r in rec.get("materials") or []):
+			rec.append("materials", {"item_code": st.default_service_item, "qty": 1,
 				"uom": frappe.db.get_value("Item", st.default_service_item, "stock_uom")})
 
 
@@ -418,64 +426,8 @@ def get_service_type_defaults(service_type):
 		["default_service_by", "default_supplier", "default_service_item", "default_service_rate"], as_dict=True)
 
 
-@frappe.whitelist()
-def make_material_issue(service_record, rows=None):
-	"""Record parts the workshop already holds: a Material Issue Stock Entry straight
-	from the record's rows, without a Material Request (Asset Settings switch)."""
-	from upande_asset.upande_asset.insurance.utils import get_settings
-
-	settings = get_settings()
-	if not settings.allow_direct_material_issue:
-		frappe.throw(_("Recording used materials directly is switched off in Asset Settings → Maintenance."))
-	rec = frappe.get_doc("Asset Service Record", service_record)
-	rec.check_permission("write" if rec.docstatus == 0 else "read")
-	frappe.has_permission("Stock Entry", "create", throw=True)
-	if rec.docstatus == 2:
-		frappe.throw(_("The service record is cancelled."))
-	names = set(frappe.parse_json(rows) or []) if rows else None
-	lines = [r for r in rec.materials if not r.material_request and not r.stock_entry
-		and (names is None or r.name in names) and frappe.get_cached_value("Item", r.item_code, "is_stock_item")]
-	if not lines:
-		frappe.throw(_("No stock items left to issue. Service items are bought, not issued; rows already requested or issued are skipped."))
-	cost_center = frappe.db.get_value("Asset", rec.asset, "cost_center") or frappe.get_cached_value("Company", rec.company, "cost_center")
-	se = frappe.new_doc("Stock Entry")
-	se.update({"stock_entry_type": "Material Issue", "purpose": "Material Issue", "company": rec.company,
-		"remarks": _("Materials used on Asset Service Record {0} ({1})").format(rec.name, rec.asset)})
-	for r in lines:
-		warehouse = r.warehouse or default_parts_warehouse(rec.company)
-		if not warehouse:
-			frappe.throw(_("Row {0}: set the Warehouse the {1} came from.").format(r.idx, r.item_code))
-		stock_uom = frappe.get_cached_value("Item", r.item_code, "stock_uom")
-		uom = r.uom or stock_uom
-		factor = 1
-		if uom != stock_uom:
-			from erpnext.stock.get_item_details import get_conversion_factor
-
-			factor = flt((get_conversion_factor(r.item_code, uom) or {}).get("conversion_factor")) or 1
-		se.append("items", {"item_code": r.item_code, "qty": r.qty, "uom": uom, "stock_uom": stock_uom,
-			"conversion_factor": factor, "s_warehouse": warehouse, "cost_center": cost_center, "asset_service_record": rec.name})
-	se.insert()
-	if (settings.direct_issue_status or "Draft") == "Submitted":
-		from frappe.model.workflow import get_workflow_name
-
-		if not get_workflow_name("Stock Entry"):
-			se.submit()
-	for r in lines:
-		frappe.db.set_value("Asset Service Material", r.name, "stock_entry", se.name, update_modified=False)
-	if rec.docstatus == 0 and rec.status == "Pending":
-		frappe.db.set_value("Asset Service Record", rec.name, "status", "In Progress", update_modified=False)
-	return se.name
-
-
-def _free_rows(field, name):
-	"""A cancelled / deleted Stock Entry or Material Request frees its rows for a new request."""
-	frappe.db.sql(f"update `tabAsset Service Material` set `{field}` = NULL where `{field}` = %s", name)
-
-
 def stock_entry_released(doc, method=None):
-	_free_rows("stock_entry", doc.name)
+	from upande_asset.upande_asset.materials import stock_entry_released as _release
+
+	_release(doc)
 	stock_entry_on_change(doc)
-
-
-def material_request_released(doc, method=None):
-	_free_rows("material_request", doc.name)

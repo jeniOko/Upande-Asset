@@ -81,7 +81,7 @@ frappe.ui.form.on("Insurance Policy", {
 	async refresh(frm) {
 		if (frm.is_new()) return;
 		const ctx = await frappe.xcall(`${POLICY_API}.get_policy_context`, { policy: frm.doc.name });
-		const live = frm.doc.docstatus === 1 && ["Active", "Expiring"].includes(frm.doc.status);
+		const live = frm.doc.docstatus === 1 && ["Active", "Expiring", "Renewal In Progress", "Awaiting Premium"].includes(frm.doc.status);
 
 		// ── Draft: new cover with no history ────────────────────────────────
 		if (frm.doc.docstatus === 0 && ctx.is_accounts_user && !ctx.open_procurement) {
@@ -94,32 +94,15 @@ frappe.ui.form.on("Insurance Policy", {
 		if (frm.doc.is_opening !== "Yes" && !frm.doc.purchase_invoice && !ctx.premium_invoiced && !ctx.open_procurement
 			&& ctx.is_accounts_user && frm.doc.status !== "Cancelled") {
 			frm.add_custom_button(__("Make Premium Invoice"), () => {
-				frappe.xcall(`${POLICY_API}.make_premium_invoice`, { policy: frm.doc.name }).then((name) => {
-					frappe.set_route("Form", "Purchase Invoice", name);
-				});
+				frappe.xcall(`${POLICY_API}.make_premium_invoice`, { policy: frm.doc.name }).then(open_unsaved);
 			}, __("Create"));
 		}
 		if (ctx.draft_premium_pi) {
 			frm.add_custom_button(__("Draft Premium Invoice"), () => frappe.set_route("Form", "Purchase Invoice", ctx.draft_premium_pi), __("View"));
 		}
 
-		// ── Opening policy release schedule ────────────────────────────────
-		if (frm.doc.is_opening === "Yes" && flt(frm.doc.prepaid_balance_at_go_live) > 0 && !frm.doc.release_schedule_generated
-			&& ctx.is_accounts_manager) {
-			frm.add_custom_button(__("Generate Release Schedule"), () => {
-				frappe.confirm(
-					__("Create monthly Journal Entries releasing {0} from prepaid to insurance expense? Entries dated up to today are submitted; later ones stay as drafts and are submitted automatically when due.",
-						[format_currency(frm.doc.prepaid_balance_at_go_live, erpnext.get_currency(frm.doc.company))]),
-					() => frappe.xcall(`${POLICY_API}.generate_release_schedule`, { policy: frm.doc.name }).then((names) => {
-						frappe.show_alert({ message: __("{0} Journal Entries created", [names.length]), indicator: "green" });
-						frm.reload_doc();
-					})
-				);
-			}, __("Create"));
-		}
-
 		// ── Renewal ─────────────────────────────────────────────────────────
-		if (["Active", "Expiring", "Expired"].includes(frm.doc.status) && !frm.doc.renewed_to && !ctx.draft_renewal
+		if (["Active", "Expiring", "Expired", "Awaiting Premium", "Renewal In Progress"].includes(frm.doc.status) && !frm.doc.renewed_to && !ctx.draft_renewal
 			&& ctx.is_accounts_user) {
 			frm.add_custom_button(__("Raise Renewal Request"), () => raise_procurement(frm, ctx, "raise_renewal_request"), __("Create"));
 		}
@@ -133,9 +116,27 @@ frappe.ui.form.on("Insurance Policy", {
 				? ["Add Assets", "Remove Assets", "Change Sum Insured", "Cancel Policy"]
 				: ["Change Sum Insured", "Cancel Policy"];
 			actions.forEach((action) => {
-				frm.add_custom_button(__(action), () => endorse_dialog(frm, action), __("Endorse"));
+				frm.add_custom_button(__(action), () => endorse_dialog(frm, ctx, action), __("Endorse"));
 			});
 		}
+		const pending = ctx.pending_endorsements || [];
+		if (ctx.is_accounts_manager && pending.length) {
+			frm.add_custom_button(__("Confirm Endorsement"), () => confirm_dialog(frm, ctx), __("Endorse"));
+			frm.add_custom_button(__("Withdraw Request"), () => withdraw_dialog(frm, ctx), __("Endorse"));
+		}
+		if (ctx.is_accounts_manager && (ctx.endorsements_without_document || []).length) {
+			frm.add_custom_button(__("Raise Premium Document"), () => raise_endorsement_dialog(frm, ctx), __("Endorse"));
+		}
+		const alerts = [];
+		if (pending.length) {
+			alerts.push(__("Waiting for the insurer: {0}. Use Endorse → Confirm Endorsement when they reply.",
+				[pending.map((e) => e.label).join("; ")]));
+		}
+		if ((ctx.endorsements_without_document || []).length) {
+			alerts.push(__("No premium document yet for {0}. Use Endorse → Raise Premium Document.",
+				[ctx.endorsements_without_document.map((e) => e.label).join("; ")]));
+		}
+		if (alerts.length) frm.dashboard.set_headline_alert(alerts.join("<br>"), pending.length ? "blue" : "orange");
 		if (ctx.is_accounts_manager && (frm.doc.endorsements || []).some((e) => e.status === "Active")) {
 			frm.add_custom_button(__("Reverse Endorsement"), () => reverse_dialog(frm), __("Endorse"));
 		}
@@ -144,7 +145,7 @@ frappe.ui.form.on("Insurance Policy", {
 		if (frappe.route_options && frappe.route_options.__endorse && live && ctx.is_accounts_manager) {
 			const { __endorse, __asset } = frappe.route_options;
 			frappe.route_options = null;
-			endorse_dialog(frm, __endorse, __asset);
+			endorse_dialog(frm, ctx, __endorse, __asset);
 		}
 	},
 });
@@ -185,33 +186,124 @@ function set_sum_insured(frm) {
 	frm.set_value("total_sum_insured", total);
 }
 
-function raise_procurement(frm, ctx, method) {
-	const run = (procurement) => {
-		frappe.xcall(`${POLICY_API}.${method}`, { policy: frm.doc.name, procurement }).then((r) => {
-			let msg = __("{0} {1} created.", [__(r.procurement_doctype), r.procurement_name]);
-			if (r.policy && r.policy !== frm.doc.name) msg = __("Renewal policy {0} and ", [r.policy]) + msg;
-			if (r.excluded && r.excluded.length) {
-				msg += "<br>" + __("Excluded (scrapped / sold / no longer flagged): {0}", [r.excluded.join(", ")]);
-			}
-			frappe.msgprint({ message: msg, indicator: "green", title: __("Done") });
-			frm.reload_doc();
-			if (r.policy && r.policy !== frm.doc.name) frappe.set_route("Form", "Insurance Policy", r.policy);
-		});
-	};
-	if (ctx.renewal_procurement !== "Ask") return run(ctx.renewal_procurement);
+// Documents come back unsaved and open as a new form (like ERPNext's "Create →" buttons):
+// the user completes any site-specific mandatory fields and saves it.
+function open_unsaved(doc) {
+	frappe.model.sync(doc);
+	frappe.set_route("Form", doc.doctype, doc.name);
+}
+
+function with_procurement(ctx, callback) {
+	if (ctx.renewal_procurement !== "Ask") return callback(ctx.renewal_procurement);
 	frappe.prompt(
 		{ fieldname: "procurement", fieldtype: "Select", label: __("Procure via"), options: "Material Request\nPurchase Order", reqd: 1, default: "Material Request" },
-		(v) => run(v.procurement),
+		(v) => callback(v.procurement),
 		__("Procurement"),
-		__("Create")
+		__("Continue")
 	);
 }
 
-function endorse_dialog(frm, action, preset_asset) {
+function raise_procurement(frm, ctx, method) {
+	with_procurement(ctx, (procurement) => {
+		frappe.xcall(`${POLICY_API}.${method}`, { policy: frm.doc.name, procurement }).then((r) => {
+			let msg = __("Review and save the {0} to request the premium.", [__(r.doc.doctype)]);
+			if (r.policy && r.policy !== frm.doc.name) msg = __("Renewal policy {0} created.", [r.policy]) + " " + msg;
+			if (r.excluded && r.excluded.length) {
+				msg += " " + __("Excluded (scrapped / sold / no longer flagged): {0}", [r.excluded.join(", ")]);
+			}
+			frappe.show_alert({ message: msg, indicator: "green" }, 10);
+			open_unsaved(r.doc);
+		});
+	});
+}
+
+function open_endorsement_document(frm, ctx, group, total) {
+	const run = (procurement) => frappe.xcall(`${POLICY_API}.make_endorsement_document`,
+		{ policy: frm.doc.name, endorsement_group: group, procurement }).then(open_unsaved);
+	// Returned premium is a debit note; extra premium goes through procurement.
+	if (flt(total) < 0) return run(null);
+	with_procurement(ctx, run);
+}
+
+function pending_options(frm, ctx) {
+	const currency = erpnext.get_currency(frm.doc.company);
+	return (ctx.pending_endorsements || []).map((e) => ({
+		value: e.group,
+		label: `${e.label} (${__("requested for {0}", [frappe.datetime.str_to_user(e.effective_date)])}, ${format_currency(e.total, currency)})`,
+	}));
+}
+
+// The insurer has endorsed the policy: their number, effective date and premium; the change is applied.
+function confirm_dialog(frm, ctx) {
+	const pending = ctx.pending_endorsements;
+	const d = new frappe.ui.Dialog({
+		title: __("Confirm Endorsement"),
+		size: "large",
+		fields: [
+			{ fieldname: "group", fieldtype: "Select", label: __("Request"), reqd: 1, options: pending_options(frm, ctx),
+				default: pending[0].group, onchange: () => fill() },
+			{ fieldtype: "Section Break", label: __("From the insurer") },
+			{ fieldname: "endorsement_no", fieldtype: "Data", label: __("Insurer's Endorsement No"), reqd: 1 },
+			{ fieldname: "effective_date", fieldtype: "Date", label: __("Effective Date"), reqd: 1 },
+			{ fieldtype: "Column Break" },
+			{ fieldname: "premium_adjustment", fieldtype: "Currency", label: __("Premium Charged (+) / Returned (−)"),
+				description: __("The insurer's figure. Extra premium is billed through the Material Request / Purchase Order; a refund is recorded with a Journal Entry.") },
+			{ fieldname: "remarks", fieldtype: "Small Text", label: __("Remarks") },
+			{ fieldname: "open_refund", fieldtype: "Check", label: __("Record the refund now (Journal Entry)"), default: 1,
+				depends_on: "eval:flt(doc.premium_adjustment) < 0" },
+		],
+		primary_action_label: __("Confirm"),
+		primary_action(v) {
+			frappe.xcall(`${POLICY_API}.confirm_endorsement`, { policy: frm.doc.name, endorsement_group: v.group, payload: {
+				endorsement_no: v.endorsement_no, effective_date: v.effective_date, premium_adjustment: v.premium_adjustment, remarks: v.remarks,
+			} }).then((r) => {
+				d.hide();
+				frappe.show_alert({ message: __("Endorsement {0} applied to the policy.", [v.endorsement_no]), indicator: "green" });
+				if (flt(r.total) < 0 && v.open_refund) {
+					open_endorsement_document(frm, ctx, r.endorsement_group, r.total);
+				} else {
+					frm.reload_doc();
+				}
+			});
+		},
+	});
+	const fill = () => {
+		const e = pending.find((x) => x.group === d.get_value("group"));
+		d.set_values({ effective_date: e.effective_date, premium_adjustment: e.total });
+	};
+	d.show();
+	fill();
+}
+
+function withdraw_dialog(frm, ctx) {
+	frappe.prompt([
+		{ fieldname: "group", fieldtype: "Select", label: __("Request"), reqd: 1, options: pending_options(frm, ctx) },
+		{ fieldname: "reason", fieldtype: "Small Text", label: __("Reason") },
+	], (v) => frappe.xcall(`${POLICY_API}.withdraw_endorsement`, { policy: frm.doc.name, endorsement_group: v.group, reason: v.reason })
+		.then(() => { frappe.show_alert({ message: __("Request withdrawn"), indicator: "green" }); frm.reload_doc(); }),
+	__("Withdraw Request"), __("Withdraw"));
+}
+
+function raise_endorsement_dialog(frm, ctx) {
+	const rows = ctx.endorsements_without_document;
+	const currency = erpnext.get_currency(frm.doc.company);
+	frappe.prompt(
+		{ fieldname: "group", fieldtype: "Select", label: __("Endorsement"), reqd: 1,
+			options: rows.map((e) => ({ value: e.group, label: `${e.label} (${format_currency(e.total, currency)})` })) },
+		(v) => open_endorsement_document(frm, ctx, v.group, rows.find((e) => e.group === v.group).total),
+		__("Raise Premium Document"),
+		__("Open")
+	);
+}
+
+function endorse_dialog(frm, ctx, action, preset_asset) {
 	const active = (frm.doc.insured_assets || []).filter((r) => r.row_status === "Active");
+	// Adding assets / changing their sums: a suggested premium per asset (shown to procurement line by line).
+	const per_asset = action === "Add Assets" || (action === "Change Sum Insured" && (frm.doc.insurance_for || "Assets") === "Assets");
 	const fields = [
-		{ fieldname: "endorsement_no", fieldtype: "Data", label: __("Insurer's Endorsement No"), reqd: 1 },
-		{ fieldname: "effective_date", fieldtype: "Date", label: __("Effective Date"), reqd: 1, default: frappe.datetime.get_today() },
+		{ fieldname: "effective_date", fieldtype: "Date", label: __("Requested Effective Date"), reqd: 1, default: frappe.datetime.get_today() },
+		{ fieldname: "endorsement_no", fieldtype: "Data", label: __("Insurer's Endorsement No"),
+			description: __("Leave empty to send this as a request; the policy changes once the insurer confirms it. Fill it in only if the insurer has already endorsed the policy.") },
 		{ fieldtype: "Column Break" },
 		{ fieldname: "remarks", fieldtype: "Small Text", label: __("Remarks") },
 		{ fieldtype: "Section Break" },
@@ -223,7 +315,10 @@ function endorse_dialog(frm, action, preset_asset) {
 				{ fieldname: "asset", fieldtype: "Link", options: "Asset", label: __("Asset"), in_list_view: 1, reqd: 1,
 					get_query: () => ({ query: `${POLICY_API}.get_insurable_assets`, filters: { company: frm.doc.company, exclude: active.map((r) => r.asset) } }) },
 				{ fieldname: "sum_insured", fieldtype: "Currency", label: __("Sum Insured"), in_list_view: 1, reqd: 1 },
+				{ fieldname: "premium", fieldtype: "Currency", label: __("Suggested Premium"), in_list_view: 1,
+					description: __("Pro-rata figure from Calculate; change it to what you expect the insurer to charge.") },
 			],
+			description: __("Add each asset with its sum insured, then press Calculate for the suggested premium per asset."),
 			data: preset_asset ? [{ asset: preset_asset }] : [],
 		});
 	} else if (action === "Remove Assets") {
@@ -249,53 +344,64 @@ function endorse_dialog(frm, action, preset_asset) {
 				{ fieldname: "asset", fieldtype: "Link", options: "Asset", label: __("Asset"), in_list_view: 1, read_only: 1 },
 				{ fieldname: "sum_insured", fieldtype: "Currency", label: __("Current"), in_list_view: 1, read_only: 1 },
 				{ fieldname: "new_sum_insured", fieldtype: "Currency", label: __("New Sum Insured"), in_list_view: 1 },
+				{ fieldname: "premium", fieldtype: "Currency", label: __("Suggested Premium"), in_list_view: 1,
+					description: __("Pro-rata figure from Calculate; change it to what you expect the insurer to charge.") },
 			],
+			description: __("Change the sums insured, then press Calculate for the suggested premium per asset."),
 			data: active.map((r) => ({ asset: r.asset, sum_insured: r.sum_insured, new_sum_insured: r.sum_insured })),
 		});
 	} else {
-		fields.push({ fieldtype: "HTML", options: `<p class="text-muted">${__("All {0} active asset row(s) will be removed and the policy marked Cancelled. The unexpired share of the total premium is returned via a debit note.", [active.length])}</p>` });
+		fields.push({ fieldtype: "HTML", options: `<p class="text-muted">${__("All {0} active asset row(s) will be removed and the policy marked Cancelled. The insurer's refund of unexpired premium is recorded with a Journal Entry once they confirm.", [active.length])}</p>` });
 	}
 	fields.push(
 		{ fieldtype: "Section Break", label: __("Premium") },
-		{ fieldname: "computed", fieldtype: "Currency", label: __("Pro-rata Premium Adjustment"), read_only: 1 },
+		{ fieldname: "computed", fieldtype: "Currency", label: per_asset ? __("Total Suggested Premium") : __("Estimated Premium (pro-rata)"), read_only: 1 },
 		{ fieldname: "basis", fieldtype: "HTML" },
 		{ fieldtype: "Column Break" },
-		{ fieldname: "premium_adjustment", fieldtype: "Currency", label: __("Override Adjustment"),
-			description: __("Leave blank to use the pro-rata amount. Negative = return premium.") },
-		{ fieldname: "create_premium_document", fieldtype: "Check", label: __("Create premium document (draft)"), default: 1 },
+		{ fieldname: "premium_adjustment", fieldtype: "Currency", label: __("Expected Premium"),
+			hidden: per_asset ? 1 : 0,
+			description: __("Leave blank to use the pro-rata estimate. Negative = premium returned. The insurer's figure is entered when they confirm.") },
+		{ fieldname: "create_premium_document", fieldtype: "Check", label: __("Ask procurement for the extra premium"), default: 1,
+			description: __("Opens a Material Request or Purchase Order (unsaved) so procurement can take the change to the insurer.") },
 	);
 
 	const d = new frappe.ui.Dialog({
-		title: __("Endorse: {0}", [__(action)]),
+		title: __("Endorsement Request: {0}", [__(action)]),
 		size: "large",
 		fields,
-		primary_action_label: __("Endorse"),
+		primary_action_label: __("Send Request"),
 		primary_action(values) {
 			const payload = build_payload(action, values);
 			frappe.xcall(`${POLICY_API}.endorse`, { policy: frm.doc.name, action, payload }).then((r) => {
 				d.hide();
-				frm.reload_doc();
-				if (r.reference_name) {
-					frappe.msgprint({
-						message: __("Endorsement recorded. Draft {0} {1} created.", [__(r.reference_doctype),
-							`<a href="/app/${frappe.router.slug(r.reference_doctype)}/${r.reference_name}">${r.reference_name}</a>`]),
-						indicator: "green",
-					});
-				}
+				frappe.show_alert({
+					message: r.status === "Requested"
+						? __("Request recorded. Confirm it with the insurer's endorsement number when they reply.")
+						: __("Endorsement recorded."),
+					indicator: "green",
+				}, 8);
+				// Extra premium: procurement takes the request to the insurer. Returned premium: once confirmed.
+				const raise = payload.create_premium_document && flt(r.total) && (flt(r.total) > 0 || r.status === "Active");
+				raise ? open_endorsement_document(frm, ctx, r.endorsement_group, r.total) : frm.reload_doc();
 			});
 		},
 	});
-	d.add_custom_action(__("Calculate"), () => preview(frm, d, action));
+	d.add_custom_action(__("Calculate"), () => preview(frm, d, action, true));
+	if (per_asset) {
+		// Edited suggestions update the total straight away.
+		d.fields_dict.assets.grid.wrapper.on("change", "input", () => setTimeout(() => sum_suggested(d), 50));
+	}
 	["effective_date", "new_sum_insured"].forEach((f) => {
-		if (d.fields_dict[f]) d.fields_dict[f].df.onchange = () => preview(frm, d, action);
+		if (d.fields_dict[f]) d.fields_dict[f].df.onchange = () => preview(frm, d, action, f === "effective_date");
 	});
 	d.show();
 	if (action === "Cancel Policy" || preset_asset) preview(frm, d, action);
 }
 
 function build_payload(action, values) {
-	let assets = values.assets || [];
+	let assets = (values.assets || []).map((r) => ({ ...r }));
 	if (action === "Remove Assets") assets = assets.filter((r) => r.select);
+	if (action === "Change Sum Insured") assets = assets.filter((r) => flt(r.new_sum_insured) !== flt(r.sum_insured));
 	return {
 		endorsement_no: values.endorsement_no,
 		effective_date: values.effective_date,
@@ -307,12 +413,34 @@ function build_payload(action, values) {
 	};
 }
 
-function preview(frm, d, action) {
-	const payload = build_payload(action, d.get_values(true) || {});
+function sum_suggested(d) {
+	const rows = d.fields_dict.assets ? d.fields_dict.assets.grid.get_data() || [] : [];
+	if (rows.some((r) => r.premium !== undefined && r.premium !== null && r.premium !== "")) {
+		d.set_value("computed", rows.reduce((s, r) => s + flt(r.premium), 0));
+	}
+}
+
+// fill: put the pro-rata premium into each asset row (Calculate, or a changed effective date).
+function preview(frm, d, action, fill) {
+	const values = d.get_values(true) || {};
+	const payload = build_payload(action, values);
+	(payload.assets || []).forEach((a) => delete a.premium);  // the pro-rata figures, not the suggestions
 	const policy_level = (frm.doc.insurance_for || "Assets") !== "Assets";
 	if (action !== "Cancel Policy" && !policy_level && !(payload.assets || []).some((a) => a.asset)) return;
 	frappe.xcall(`${POLICY_API}.get_endorsement_preview`, { policy: frm.doc.name, action, payload }).then((p) => {
 		d.set_value("computed", p.total);
+		const grid = d.fields_dict.assets && d.fields_dict.assets.grid;
+		if (grid && grid.df.fields.some((f) => f.fieldname === "premium")) {
+			const by_asset = {};
+			(p.lines || []).forEach((ln) => { by_asset[ln.asset] = ln.amount; });
+			(grid.get_data() || []).forEach((r) => {
+				if (r.asset in by_asset && (fill || r.premium === undefined || r.premium === null || r.premium === "")) {
+					r.premium = by_asset[r.asset];
+				}
+			});
+			grid.refresh();
+			sum_suggested(d);
+		}
 		d.fields_dict.basis.$wrapper.html(
 			`<div class="text-muted small">${__("{0} of {1} policy days remaining from the effective date.", [p.remaining_days, p.policy_days])}</div>`
 		);
@@ -328,11 +456,11 @@ function reverse_dialog(frm) {
 	});
 	const options = Object.values(groups).map((g) => ({
 		value: g.endorsement_group,
-		label: `${g.endorsement_no} – ${__(g.endorsement_type)} – ${g.assets.join(", ")} (${format_currency(g.total, erpnext.get_currency(frm.doc.company))})${g.reference_name ? " · " + g.reference_name : ""}`,
+		label: `${g.endorsement_no || __("No number")} – ${__(g.endorsement_type)} – ${g.assets.join(", ")} (${format_currency(g.total, erpnext.get_currency(frm.doc.company))})${g.reference_name ? " · " + g.reference_name : ""}`,
 	}));
 	frappe.prompt(
 		{ fieldname: "group", fieldtype: "Select", label: __("Endorsement"), options, reqd: 1,
-			description: __("Allowed only while the premium document is draft or cancelled. A draft premium document is deleted.") },
+			description: __("Allowed only while its premium documents are draft or cancelled. Draft ones are deleted.") },
 		(v) => frappe.xcall(`${POLICY_API}.reverse_endorsement`, { policy: frm.doc.name, endorsement_group: v.group })
 			.then(() => { frappe.show_alert({ message: __("Endorsement reversed"), indicator: "green" }); frm.reload_doc(); }),
 		__("Reverse Endorsement"),

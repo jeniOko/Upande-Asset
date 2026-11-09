@@ -9,6 +9,8 @@ workshop raises Material Requests, either from stores (Material Issue) or to
 purchase. Each request row carries `asset_repair`, which ERPNext's mappers copy
 onto the Stock Entry, Purchase Order and Purchase Invoice made from it:
 
+Rows, statuses and the documents themselves: see materials.py.
+
 - stock issued against the repair → Issued Materials Cost (actual valuation)
 - a supplier invoice for a service line → a row in the repair's Purchase Invoices table
 
@@ -17,11 +19,10 @@ Both feed Total Repair Cost. With the setting off nothing here runs.
 
 import frappe
 from frappe import _
-from frappe.utils import flt, getdate, nowdate
+from frappe.utils import flt
 
 from upande_asset.upande_asset.insurance.utils import get_settings
 
-PURPOSES = ("Material Issue", "Purchase")
 
 
 def enabled():
@@ -58,14 +59,23 @@ def get_dashboard_data(data):
 
 def asset_repair_onload(doc, method=None):
 	settings = get_settings()
-	doc.set_onload("repair_materials", {"enabled": enabled(), "allow_direct_issue": bool(settings.allow_direct_material_issue)})
+	from upande_asset.upande_asset.materials import client_options
+
+	doc.set_onload("repair_materials", {"enabled": enabled(), "allow_direct_issue": bool(settings.allow_direct_material_issue),
+		**client_options()})
+	if doc.get("repair_materials"):
+		from upande_asset.upande_asset.materials import refresh_rows
+
+		refresh_rows(doc)  # live stock and status on the Materials rows
 
 
 def asset_repair_validate(doc, method=None):
 	validate_locked_rows(doc, "repair_materials")
 	if not enabled() and not doc.get("repair_materials"):
 		return
-	set_material_rows(doc, doc.get("repair_materials") or [])
+	from upande_asset.upande_asset.materials import refresh_rows
+
+	refresh_rows(doc)
 	doc.requested_materials_cost = issued_value(doc.name) if not doc.is_new() else 0
 	# ERPNext has already summed invoices + Stock Items; add what was issued through requests.
 	doc.total_repair_cost = flt(doc.repair_cost) + flt(doc.consumed_items_cost) + flt(doc.requested_materials_cost)
@@ -93,7 +103,7 @@ def asset_repair_before_submit(doc, method=None):
 # ── Rows ─────────────────────────────────────────────────────────────────────
 
 # What a Material Request / Stock Entry was raised for; frozen once the row has one.
-LOCKED_FIELDS = ("item_code", "qty", "uom", "warehouse", "estimated_rate", "material_request", "stock_entry")
+LOCKED_FIELDS = ("item_code", "qty", "uom", "warehouse", "material_request", "purchase_request", "purchase_order", "stock_entry")
 
 
 def validate_locked_rows(doc, table):
@@ -103,20 +113,20 @@ def validate_locked_rows(doc, table):
 	before = doc.get_doc_before_save()
 	if not before:
 		return
-	locked = {r.name: r for r in before.get(table) or [] if r.material_request or r.stock_entry}
+	locked = {r.name: r for r in before.get(table) or [] if r.material_request or r.stock_entry or r.get("purchase_request") or r.get("purchase_order")}
 	if not locked:
 		return
 	current = {r.name: r for r in doc.get(table) or []}
 	for name, old in locked.items():
-		ref = old.stock_entry or old.material_request
+		ref = old.stock_entry or old.material_request or old.get("purchase_request") or old.get("purchase_order")
 		row = current.get(name)
 		if not row:
 			frappe.throw(_("Row {0} ({1}) is on {2} and cannot be removed. Cancel {2} first.").format(old.idx, old.item_code, ref),
 				title=_("Material Already Requested"))
 		changed = [f for f in LOCKED_FIELDS
-			if (flt(old.get(f)) != flt(row.get(f)) if f in ("qty", "estimated_rate") else (old.get(f) or "") != (row.get(f) or ""))]
+			if (flt(old.get(f)) != flt(row.get(f)) if f == "qty" else (old.get(f) or "") != (row.get(f) or ""))]
 		if changed:
-			if {"material_request", "stock_entry"} & set(changed):
+			if {"material_request", "purchase_request", "purchase_order", "stock_entry"} & set(changed):
 				frappe.throw(_("Row {0} ({1}) was requested or issued while this form was open. Reload the form and try again.").format(
 					old.idx, old.item_code), title=_("Reload Needed"))
 			labels = ", ".join(_(frappe.get_meta(row.doctype).get_label(f)) for f in changed)
@@ -125,131 +135,20 @@ def validate_locked_rows(doc, table):
 
 
 
-def set_material_rows(doc, rows):
-	"""Default warehouse (Asset Settings) and current Actual Qty on each Materials row."""
-	from erpnext.stock.get_item_details import _get_bin_details
-
-	default_wh = default_parts_warehouse(doc.company)
-	for row in rows:
-		if not row.item_code:
-			continue
-		is_stock = frappe.get_cached_value("Item", row.item_code, "is_stock_item")
-		row.is_stock_item = is_stock
-		row.item_name = row.item_name or frappe.get_cached_value("Item", row.item_code, "item_name")
-		row.uom = row.uom or frappe.get_cached_value("Item", row.item_code, "stock_uom")
-		if is_stock and not row.warehouse and default_wh:
-			row.warehouse = default_wh
-		row.actual_qty = flt((_get_bin_details(row.item_code, row.warehouse, doc.company) or {}).get("actual_qty")) \
-			if is_stock and row.warehouse else 0
-
-
-def _conversion(item_code, uom):
-	stock_uom = frappe.get_cached_value("Item", item_code, "stock_uom")
-	uom = uom or stock_uom
-	factor = 1
-	if uom != stock_uom:
-		from erpnext.stock.get_item_details import get_conversion_factor
-
-		factor = flt((get_conversion_factor(item_code, uom) or {}).get("conversion_factor")) or 1
-	return uom, stock_uom, factor
-
-
-def _repair(name, perm="write"):
-	if not enabled():
-		frappe.throw(_("Turn on Asset Settings → Maintenance → Request Repair Materials first."))
-	doc = frappe.get_doc("Asset Repair", name)
-	doc.check_permission(perm if doc.docstatus == 0 else "read")
-	if doc.docstatus == 2:
-		frappe.throw(_("The repair is cancelled."))
-	return doc
-
-
-def _open_rows(doc, rows):
-	names = set(frappe.parse_json(rows) or []) if rows else None
-	return [r for r in doc.get("repair_materials") or [] if r.item_code and not r.material_request and not r.stock_entry
-		and (names is None or r.name in names)]
-
-
-def _label(doc):
-	return f"{doc.asset_name or doc.asset} ({doc.name})"
-
-
-# ── Actions ──────────────────────────────────────────────────────────────────
-
-
 @frappe.whitelist()
 def make_material_request(asset_repair, purpose, rows=None):
-	"""Material Request for the repair's open Materials rows: Material Issue (from stores)
-	or Purchase. Submitted at once or left as a draft per Asset Settings."""
-	doc = _repair(asset_repair)
-	frappe.has_permission("Material Request", "create", throw=True)
-	if purpose not in PURPOSES:
-		frappe.throw(_("Choose Material Issue or Purchase."))
-	lines = _open_rows(doc, rows)
-	if purpose == "Material Issue":
-		lines = [r for r in lines if frappe.get_cached_value("Item", r.item_code, "is_stock_item")]
-	if not lines:
-		frappe.throw(_("No Materials rows left to request. Rows already requested or issued are skipped; services are purchased, not issued."))
-	settings = get_settings()
-	schedule = max(getdate(nowdate()), getdate(doc.failure_date or nowdate()))
-	mr = frappe.new_doc("Material Request")
-	mr.update({"material_request_type": purpose, "company": doc.company, "transaction_date": nowdate(), "schedule_date": schedule})
-	for r in lines:
-		warehouse = r.warehouse or default_parts_warehouse(doc.company)
-		if purpose == "Material Issue" and not warehouse:
-			frappe.throw(_("Row {0}: set the Warehouse to issue {1} from.").format(r.idx, r.item_code))
-		uom, stock_uom, factor = _conversion(r.item_code, r.uom)
-		mr.append("items", {
-			"item_code": r.item_code, "qty": r.qty, "uom": uom, "stock_uom": stock_uom, "conversion_factor": factor,
-			"warehouse": warehouse, "schedule_date": schedule, "rate": r.estimated_rate,
-			"cost_center": doc.cost_center or frappe.get_cached_value("Company", doc.company, "cost_center"),
-			"description": _("{0} for repair of {1}").format(r.item_name or r.item_code, _label(doc)),
-			"asset_repair": doc.name,
-		})
-	mr.insert()
-	if (settings.maintenance_mr_status or "Draft") == "Submitted":
-		from frappe.model.workflow import get_workflow_name
+	"""Unsaved Material Request for the repair's Materials rows (see materials.py)."""
+	from upande_asset.upande_asset.materials import make_material_request as _make
 
-		if not get_workflow_name("Material Request"):
-			mr.submit()
-	for r in lines:
-		frappe.db.set_value("Asset Service Material", r.name, "material_request", mr.name, update_modified=False)
-	return mr.name
+	return _make("Asset Repair", asset_repair, purpose, rows)
 
 
 @frappe.whitelist()
 def make_material_issue(asset_repair, rows=None):
-	"""Record parts the workshop already holds: a Material Issue straight from the rows
-	(Asset Settings → Record Used Materials Directly)."""
-	doc = _repair(asset_repair)
-	settings = get_settings()
-	if not settings.allow_direct_material_issue:
-		frappe.throw(_("Recording used materials directly is switched off in Asset Settings → Maintenance."))
-	frappe.has_permission("Stock Entry", "create", throw=True)
-	lines = [r for r in _open_rows(doc, rows) if frappe.get_cached_value("Item", r.item_code, "is_stock_item")]
-	if not lines:
-		frappe.throw(_("No stock items left to issue. Services are purchased, not issued; rows already requested or issued are skipped."))
-	cost_center = doc.cost_center or frappe.db.get_value("Asset", doc.asset, "cost_center") \
-		or frappe.get_cached_value("Company", doc.company, "cost_center")
-	se = frappe.new_doc("Stock Entry")
-	se.update({"stock_entry_type": "Material Issue", "purpose": "Material Issue", "company": doc.company,
-		"remarks": _("Materials used on Asset Repair {0}").format(_label(doc))})
-	for r in lines:
-		warehouse = r.warehouse or default_parts_warehouse(doc.company)
-		if not warehouse:
-			frappe.throw(_("Row {0}: set the Warehouse the {1} came from.").format(r.idx, r.item_code))
-		uom, stock_uom, factor = _conversion(r.item_code, r.uom)
-		se.append("items", {"item_code": r.item_code, "qty": r.qty, "uom": uom, "stock_uom": stock_uom, "conversion_factor": factor,
-			"s_warehouse": warehouse, "cost_center": cost_center, "asset_repair": doc.name})
-	se.insert()
-	if (settings.direct_issue_status or "Draft") == "Submitted":
-		from frappe.model.workflow import get_workflow_name
+	"""Unsaved Material Issue for parts the workshop already holds (see materials.py)."""
+	from upande_asset.upande_asset.materials import make_material_issue as _make
 
-		if not get_workflow_name("Stock Entry"):
-			se.submit()
-	for r in lines:
-		frappe.db.set_value("Asset Service Material", r.name, "stock_entry", se.name, update_modified=False)
-	return se.name
+	return _make("Asset Repair", asset_repair, rows)
 
 
 # ── Costs from real transactions ─────────────────────────────────────────────
@@ -296,13 +195,8 @@ def stock_entry_on_change(doc, method=None):
 
 
 def stock_entry_released(doc, method=None):
-	frappe.db.sql("update `tabAsset Service Material` set stock_entry = NULL where stock_entry = %s and parenttype = 'Asset Repair'", doc.name)
+	"""Row links are freed by materials.stock_entry_released; recompute the repair's cost."""
 	stock_entry_on_change(doc)
-
-
-def material_request_released(doc, method=None):
-	frappe.db.sql("update `tabAsset Service Material` set material_request = NULL where material_request = %s and parenttype = 'Asset Repair'",
-		doc.name)
 
 
 def purchase_invoice_on_submit(doc, method=None):

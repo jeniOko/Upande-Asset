@@ -4,6 +4,9 @@
 
 
 def payment_entry_on_change(doc, method=None):
+	from upande_asset.upande_asset.insurance.premium import payment_on_change
+
+	payment_on_change(doc)
 	if doc.get("insurance_claim"):
 		from upande_asset.upande_asset.doctype.insurance_claim.insurance_claim import update_settlement
 

@@ -321,3 +321,117 @@ def create_check_sheet_from_mobile(payload):
         return {"name": cs.name, "submitted": True}
     except frappe.ValidationError as e:
         return {"name": cs.name, "submitted": False, "error": str(e)}
+
+
+# ── Mobile check sheet: scan or search an asset ───────────────────────────────
+
+
+@frappe.whitelist()
+def lookup_for_scan(asset: str | None = None, template: str | None = None, qr: str | None = None):
+	"""Resolve a scanned asset into the check sheet it needs.
+
+	Given an asset number, or what a scanner read off its QR label (the mobile check sheet
+	address, or on older labels the number on the first line), return the asset, the
+	templates for its category and the check factors of the chosen one. The page renders
+	straight from this.
+	"""
+	from upande_asset.upande_asset.asset_qr import asset_from_scan
+
+	asset = (asset or "").strip() or asset_from_scan(qr)
+	if not asset:
+		return {"status": "error", "message": _("Scan a code or type an asset number.")}
+
+	a = frappe.db.get_value(
+		"Asset",
+		asset,
+		["name", "asset_name", "asset_category", "location", "company", "custodian", "status", "docstatus", "image"],
+		as_dict=True,
+	)
+	if not a:
+		return {"status": "error", "message": _("No asset with the number {0}.").format(asset)}
+	if not frappe.has_permission("Asset", "read", a.name):
+		return {"status": "error", "message": _("You do not have access to asset {0}.").format(a.name)}
+	if a.docstatus != 1:
+		return {"status": "error", "message": _("Asset {0} is not submitted yet.").format(a.name)}
+
+	templates = frappe.get_all(
+		"Asset Check Sheet Template",
+		filters={"asset_category": a.asset_category},
+		fields=["name", "template_name", "is_default", "frequency", "asset_maintenance_team"],
+		order_by="is_default desc, template_name asc",
+	)
+	names = [t.name for t in templates]
+	chosen = (template or "").strip()
+	if chosen not in names:
+		chosen = names[0] if names else ""
+
+	sections, require_pct, require_action, frequency = [], 0, 0, None
+	if chosen:
+		tmpl = frappe.get_doc("Asset Check Sheet Template", chosen)
+		require_pct = tmpl.require_incident_percent or 0
+		require_action = tmpl.require_proposed_action or 0
+		frequency = tmpl.frequency
+		for key in SECTIONS:
+			items = tmpl.get(f"section_{key}_items") or []
+			if not items:
+				continue
+			sections.append({
+				"key": key,
+				"label": tmpl.get(f"section_{key}_name") or _("Section {0}").format(key.upper()),
+				"items": [
+					{"check_factor": i.check_factor, "threshold_percent": i.threshold_percent or 0, "notes": i.get("notes") or ""}
+					for i in items
+				],
+			})
+
+	custodian = frappe.db.get_value("Employee", a.custodian, "employee_name") if a.custodian else ""
+	last = frappe.get_all(
+		"Asset Check Sheet",
+		filters={"asset": a.name, "docstatus": ["<", 2]},
+		fields=["name", "check_date", "overall_status"],
+		order_by="check_date desc, modified desc",
+		limit=1,
+	)
+	return {
+		"status": "success",
+		"asset": a,
+		"custodian_name": custodian or "",
+		"templates": templates,
+		"template": chosen,
+		"frequency": frequency,
+		"sections": sections,
+		"require_incident_percent": require_pct,
+		"require_proposed_action": require_action,
+		"last_check": last[0] if last else None,
+		"no_template": 0 if chosen else 1,
+	}
+
+
+@frappe.whitelist()
+def list_assets():
+	"""Assets for the mobile page's drop-down (those the user may read), grouped by category on the page."""
+	return frappe.get_list(
+		"Asset",
+		filters={"docstatus": 1, "status": ["not in", ["Scrapped", "Sold"]]},
+		fields=["name", "asset_name", "asset_category", "location"],
+		order_by="asset_category asc, asset_name asc",
+		limit_page_length=0,
+	)
+
+
+@frappe.whitelist()
+def search_assets(txt: str = ""):
+	"""Assets for the mobile page's search box: number, name or location, the user's own access."""
+	txt = (txt or "").strip()
+	if len(txt) < 2:
+		return []
+	like = f"%{txt}%"
+	return frappe.get_list(
+		"Asset",
+		filters={"docstatus": 1, "status": ["not in", ["Scrapped", "Sold"]]},
+		or_filters={"name": ["like", like], "asset_name": ["like", like], "location": ["like", like]},
+		fields=["name", "asset_name", "location", "asset_category"],
+		order_by="asset_name asc",
+		limit_page_length=15,
+	)
+

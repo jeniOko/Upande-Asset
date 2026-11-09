@@ -275,7 +275,7 @@
    "name": "Asset Repair-repair_materials_section",
    "is_system_generated": 0,
    "fieldtype": "Section Break",
-   "label": "Materials",
+   "label": "Materials, Assets & Services",
    "insert_after": "stock_items",
    "collapsible": 0
   },
@@ -287,10 +287,10 @@
    "name": "Asset Repair-repair_materials",
    "is_system_generated": 0,
    "fieldtype": "Table",
-   "label": "Materials",
+   "label": "Stock Items, Assets & Services",
    "options": "Asset Service Material",
    "insert_after": "repair_materials_section",
-   "description": "Parts and services this repair needs. Use Material Request → Request from Stores (stock) or Request Purchase. Issue Used Materials records parts the workshop already holds, if Asset Settings allows it."
+   "description": "Everything this repair needs: stock items (parts, consumables), asset items (components that build or upgrade the asset) and services. Material Request opens the right request for each row: in stock → from stores; out of stock → purchase or transfer, then issue once received. Asset items and services are purchased."
   },
   {
    "doctype": "Custom Field",

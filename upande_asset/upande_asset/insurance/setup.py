@@ -230,12 +230,20 @@ def ensure_settings_defaults():
 		changed = True
 	# New Check fields default to 0 on an existing Single; switch these on once.
 	for field in ("auto_create_service_records", "add_to_assets_sidebar", "add_to_assets_landing_page", "show_why_why_guide",
-			"notify_policy_owner", "notify_broker", "notify_claim_owner"):
+			"enable_why_why", "notify_policy_owner", "notify_claim_owner", "notify_service_assignee"):
 		if not frappe.db.sql("select 1 from `tabSingles` where doctype='Asset Settings' and field=%s", field):
 			s.set(field, 1)
 			changed = True
+	# Fields where 0 / empty is a real choice: set only the first time they appear.
+	for field, value in (("service_record_lead_days", 14), ("service_reminder_days", "3,1"), ("service_overdue_reminder_days", 3)):
+		if not frappe.db.sql("select 1 from `tabSingles` where doctype='Asset Settings' and field=%s", field):
+			s.set(field, value)
+			if field == "service_reminder_days" and not s.get("service_reminder_roles") and frappe.db.exists("Role", "Maintenance Manager"):
+				s.append("service_reminder_roles", {"role": "Maintenance Manager"})
+			changed = True
 	for field, value in (("renewal_alert_days", "60,30,7"), ("expiring_threshold_days", 30),
-			("claim_followup_days", 14), ("renewal_procurement", "Material Request")):
+			("claim_followup_days", 14), ("renewal_procurement", "Material Request"),
+			("renewal_complete_on", "Premium Invoice Submitted")):
 		if not s.get(field):
 			s.set(field, value)
 			changed = True
@@ -271,7 +279,7 @@ NUMBER_CARDS = [
 		"label": "Active Policies",
 		"document_type": "Insurance Policy",
 		"function": "Count",
-		"filters_json": [["Insurance Policy", "docstatus", "=", 1], ["Insurance Policy", "status", "in", ["Active", "Expiring"]]],
+		"filters_json": [["Insurance Policy", "docstatus", "=", 1], ["Insurance Policy", "status", "in", ["Active", "Expiring", "Renewal In Progress", "Awaiting Premium"]]],
 		"color": "#10b981",
 	},
 	{
@@ -369,7 +377,7 @@ REPORTS_ALL = ["Check Sheet Compliance", "Check Sheet Fault Analysis", "Check Sh
 	"Insurance Register", "Uninsured Assets", "Insurance Claims Register", "Premium Analysis"]
 
 # Bump when the arrangement below changes; the next migrate re-applies it.
-ASSETS_SIDEBAR_VERSION = "4"
+ASSETS_SIDEBAR_VERSION = "5"
 ASSETS_SIDEBAR_VERSION_KEY = "upande_asset_assets_sidebar_version"
 
 # Lucide icons (frappe/public/icons/lucide). Child rows in ERPNext's sections ship without one,
@@ -467,6 +475,9 @@ def ensure_assets_sidebar():
 	insert_into("Maintenance", [
 		_row("Check Sheet Overview", "Workspace", "Asset Checksheet"),
 		_row("Asset Check Sheet", "DocType", "Asset Check Sheet"),
+		# Quick link to the phone page (scan an asset's QR label, or pick the asset).
+		{"type": "Link", "label": "Mobile Check Sheet", "link_type": "URL", "url": "/checksheet", "link_to": None, "child": 1,
+			"icon": "smartphone", "added": 1, "hidden": 0, "collapsible": 1, "indent": 0, "keep_closed": 0},
 		_row("Check Sheet Schedule", "DocType", "Asset Check Sheet Schedule"),
 		_row("Asset Service Record", "DocType", "Asset Service Record"),
 	], "wrench")
@@ -487,6 +498,27 @@ def ensure_assets_sidebar():
 	rows.append(_row("Asset Settings", "DocType", "Asset Settings", child=0))
 	save_site_sidebar("Assets", items=rows)
 	frappe.db.set_default(ASSETS_SIDEBAR_VERSION_KEY, ASSETS_SIDEBAR_VERSION)
+
+
+def ensure_desktop_icons():
+	"""Frappe gives every public workspace its own desktop icon. This app's pages belong with
+	ERPNext's Assets:
+	- Asset Checksheet: its own icon on the desktop (not inside the ERPNext app), opening the
+	  Asset Check Sheet list rather than the overview dashboard.
+	- Asset Insurance: hidden; reached through Assets and its sidebar."""
+	if not frappe.db.table_exists("Desktop Icon"):
+		return
+	for name in frappe.get_all("Desktop Icon", filters={"link_to": "Asset Checksheet"}, pluck="name") \
+			or frappe.get_all("Desktop Icon", filters={"label": "Asset Checksheet"}, pluck="name"):
+		frappe.db.set_value("Desktop Icon", name, {
+			"hidden": 0, "parent_icon": None, "link_type": "External", "link": "/desk/asset-check-sheet",
+			"icon": "clipboard-check",
+		}, update_modified=False)
+	for ws in frappe.get_all("Workspace", filters={"module": "Upande Asset", "parent_page": "Assets",
+			"name": ["!=", "Asset Checksheet"]}, pluck="name"):
+		for icon in frappe.get_all("Desktop Icon", filters={"link_to": ws, "hidden": 0}, pluck="name"):
+			frappe.db.set_value("Desktop Icon", icon, "hidden", 1, update_modified=False)
+	frappe.clear_cache()
 
 
 def display_setting(fieldname):
@@ -605,11 +637,28 @@ def ensure_assets_workspace():
 	frappe.clear_cache()
 
 
+def ensure_accounting_dimensions():
+	"""Existing Accounting Dimensions on our dimension doctypes (ERPNext adds new ones itself)."""
+	from erpnext.accounts.doctype.accounting_dimension.accounting_dimension import create_accounting_dimensions_for_doctype
+
+	for doctype in frappe.get_hooks("accounting_dimension_doctypes", app_name="upande_asset"):
+		create_accounting_dimensions_for_doctype(doctype)
+
+
+def ensure_policy_statuses():
+	"""Recompute submitted policies' statuses (renewal states depend on the premium invoice)."""
+	from upande_asset.upande_asset.doctype.insurance_policy.insurance_policy import refresh_status
+
+	for name in frappe.get_all("Insurance Policy", filters={"docstatus": 1, "status": ["!=", "Cancelled"]}, pluck="name"):
+		refresh_status(name)
+
+
 def run_all():
 	from upande_asset.upande_asset.maintenance import ensure_maintenance_data
 
 	steps = (ensure_supplier_group, ensure_workflow, ensure_policy_types, ensure_incident_types, ensure_settings_defaults,
-		ensure_workspace, ensure_assets_sidebar, ensure_assets_workspace, ensure_maintenance_data)
+		ensure_workspace, ensure_assets_sidebar, ensure_desktop_icons, ensure_assets_workspace, ensure_maintenance_data, ensure_accounting_dimensions,
+		ensure_policy_statuses)
 	for step in steps:
 		try:
 			step()

@@ -15,6 +15,43 @@ frappe.ui.form.on("Insurance Claim", {
 		frm.set_query("recoverable_account", (doc) => ({ filters: { company: doc.company, is_group: 0, account_type: "Payable" } }));
 		["credit_account", "shortfall_account"].forEach((f) =>
 			frm.set_query(f, (doc) => ({ filters: { company: doc.company, is_group: 0 } })));
+		frm.set_query("cost_center", (doc) => ({ filters: { company: doc.company, is_group: 0 } }));
+	},
+
+	onload(frm) {
+		erpnext.accounts.dimensions.setup_dimension_filters(frm, frm.doctype);
+	},
+
+	company(frm) {
+		erpnext.accounts.dimensions.update_dimension(frm, frm.doctype);
+	},
+
+	// Reject asks for the reason in a pop-up instead of failing with "Enter a Rejection Reason".
+	before_workflow_action(frm) {
+		if (frm.selected_workflow_action !== "Reject" || (frm.doc.rejection_reason || "").trim()) return;
+		frappe.dom.unfreeze();
+		return new Promise((resolve, reject) => {
+			let done = false;
+			const d = new frappe.ui.Dialog({
+				title: __("Reject Claim {0}", [frm.doc.name]),
+				fields: [{
+					fieldname: "rejection_reason", fieldtype: "Small Text", label: __("Rejection Reason"), reqd: 1,
+					description: __("Why the insurer rejected the claim, e.g. the clause or letter reference."),
+				}],
+				primary_action_label: __("Reject"),
+				primary_action(values) {
+					done = true;
+					d.hide();
+					frm.set_value("rejection_reason", values.rejection_reason.trim());
+					frm.save().then(() => {
+						frappe.dom.freeze();
+						resolve();
+					}, reject);
+				},
+			});
+			d.onhide = () => !done && reject(new Error("cancelled"));
+			d.show();
+		});
 	},
 
 	asset: (frm) => resolve_policy(frm),
@@ -31,6 +68,7 @@ frappe.ui.form.on("Insurance Claim", {
 	},
 
 	refresh(frm) {
+		lock_mandatory_docs(frm);
 		if (frm.doc.docstatus !== 1) {
 			show_missing_docs(frm);
 			return;
@@ -82,6 +120,23 @@ function resolve_policy(frm) {
 			frappe.show_alert({ message: __("No policy covers this asset on the incident date."), indicator: "red" }, 7);
 		}
 	});
+}
+
+// Once recorded, mandatory documents stay mandatory and attached (the server enforces it too).
+function lock_mandatory_docs(frm) {
+	const grid = frm.fields_dict.documents && frm.fields_dict.documents.grid;
+	if (!grid) return;
+	const locked = frm.doc.status && frm.doc.status !== "Draft";
+	(frm.doc.documents || []).forEach((row) => {
+		["document_name", "mandatory"].forEach((f) => {
+			const df = frappe.meta.get_docfield("Insurance Claim Document", f, row.name);
+			if (df) df.read_only = locked && row.mandatory ? 1 : 0;
+		});
+	});
+	frm.set_df_property("documents", "description", locked
+		? __("Mandatory documents of a recorded claim cannot be removed or cleared. You can replace a file or add more documents.")
+		: "");
+	grid.refresh();
 }
 
 function show_missing_docs(frm) {

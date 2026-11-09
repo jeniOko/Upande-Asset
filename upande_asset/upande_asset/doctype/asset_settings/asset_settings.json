@@ -12,18 +12,25 @@
   "col_break_display",
   "add_to_assets_landing_page",
   "why_why_display_section",
+  "enable_why_why",
   "show_why_why_guide",
   "maintenance_tab",
   "service_records_section",
   "auto_create_service_records",
+  "service_record_lead_days",
+  "service_reminders_section",
+  "service_reminder_days",
+  "service_overdue_reminder_days",
+  "col_break_service_reminders",
+  "service_reminder_roles",
+  "notify_service_assignee",
   "repair_materials_section",
   "repair_material_requests",
   "service_materials_section",
-  "col_break_requesting",
-  "maintenance_mr_status",
+  "parts_purchase_document",
   "col_break_service_materials",
   "allow_direct_material_issue",
-  "direct_issue_status",
+  "parts_received_notification",
   "insurance_tab",
   "premium_section",
   "premium_item",
@@ -31,10 +38,8 @@
   "split_premium_by_cost_center",
   "procurement_section",
   "renewal_procurement",
-  "endorsements_via_po",
   "col_break_procurement",
-  "material_request_status",
-  "purchase_order_status",
+  "renewal_complete_on",
   "alerts_section",
   "renewal_alert_days",
   "col_break_2",
@@ -99,7 +104,8 @@
    "description": "The four step cards and the example shown at the top of the Why-Why Analysis tab on Check Sheets and Asset Repairs.",
    "fieldname": "show_why_why_guide",
    "fieldtype": "Check",
-   "label": "Show the step guide on the Why-Why tab"
+   "label": "Show the step guide on the Why-Why tab",
+   "depends_on": "enable_why_why"
   },
   {
    "fieldname": "maintenance_tab",
@@ -114,45 +120,31 @@
   },
   {
    "default": "1",
-   "description": "When an Asset Maintenance task falls due, a Pending Service Record is created and assigned to the task owner. Submitting it completes the task and schedules the next one.",
+   "description": "A Pending Service Record is created for each Asset Maintenance task as it comes due, and assigned to the task owner. Submitting it completes the task and schedules the next one.",
    "fieldname": "auto_create_service_records",
    "fieldtype": "Check",
-   "label": "Create a Service Record for every maintenance due",
+   "label": "Create Service Records automatically",
    "show_description_on_click": 1
   },
   {
    "fieldname": "repair_materials_section",
    "fieldtype": "Section Break",
-   "label": "Asset Repair",
+   "label": "Parts, Assets & Services",
    "description": "How a repair gets its parts."
   },
   {
    "fieldname": "repair_material_requests",
    "fieldtype": "Check",
    "default": "0",
-   "label": "Use Material Requests for repair parts",
-   "description": "Turn this on if the workshop must ask for repair parts instead of taking them from the store. The repair gets a Materials list. From it you raise a Material Request to get parts from the store or to buy parts and services, and someone approves it first. The parts issued and the supplier bills make up the repair cost.\n\nLeave it off to use ERPNext's normal Asset Repair, where the Stock Items are taken from the store automatically when the repair is submitted.",
+   "label": "Use Material Requests for parts (Service Records and Asset Repairs)",
+   "description": "Turn this on if the workshop must ask for parts, assets and services instead of taking them from the store. Service Records and Asset Repairs then get a Stock Items, Assets & Services table, and Material Request raises the right request for each row: from stores, a transfer, a purchase or a Purchase Order. The parts issued and the supplier bills make up the cost.\n\nLeave it off to hide that table: Asset Repairs use ERPNext's normal Stock Items, taken from the store when the repair is submitted.",
    "show_description_on_click": 1
   },
   {
    "fieldname": "service_materials_section",
    "fieldtype": "Section Break",
    "label": "Workshop Parts",
-   "description": "Used by Service Records, and by Asset Repairs when Material Requests are turned on above. Each company's workshop parts warehouse is set in the Defaults tab."
-  },
-  {
-   "fieldname": "col_break_requesting",
-   "fieldtype": "Column Break",
-   "label": "Asking for parts"
-  },
-  {
-   "fieldname": "maintenance_mr_status",
-   "fieldtype": "Select",
-   "label": "Create Material Requests as",
-   "options": "\nDraft\nSubmitted",
-   "default": "Draft",
-   "show_description_on_click": 1,
-   "description": "Draft: someone checks the request and submits it. Submitted: it goes straight to the store or to purchasing. If Material Request has an approval workflow, it always starts as a draft."
+   "description": "Used by Service Records, and by Asset Repairs when Material Requests are turned on above. Rows in stock are requested from stores; rows out of stock are purchased or transferred, then issued once received. Each company's workshop parts warehouse is set in the Defaults tab."
   },
   {
    "fieldname": "col_break_service_materials",
@@ -160,21 +152,11 @@
    "label": "Parts the workshop already holds"
   },
   {
-   "description": "Adds an Issue Used Materials button: the parts come out of stock with a Stock Entry, without a Material Request.",
+   "description": "Adds an Issue Used Materials button for rows in stock (or received): the parts come out of stock with a Stock Entry, without a Material Request.",
    "fieldname": "allow_direct_material_issue",
    "fieldtype": "Check",
    "label": "Allow recording parts already used",
    "show_description_on_click": 1
-  },
-  {
-   "default": "Draft",
-   "depends_on": "allow_direct_material_issue",
-   "fieldname": "direct_issue_status",
-   "fieldtype": "Select",
-   "label": "Create that stock issue as",
-   "options": "\nDraft\nSubmitted",
-   "show_description_on_click": 1,
-   "description": "Draft: someone checks the Stock Entry and submits it. Submitted: stock goes down at once."
   },
   {
    "fieldname": "insurance_tab",
@@ -212,36 +194,23 @@
    "default": "Material Request",
    "fieldname": "renewal_procurement",
    "fieldtype": "Select",
-   "label": "Procure renewals through",
-   "options": "\nMaterial Request\nPurchase Order\nAsk"
+   "label": "Procure premiums through",
+   "options": "\nMaterial Request\nPurchase Order\nAsk",
+   "description": "Used for renewals, new cover and extra endorsement premium. The Material Request or Purchase Order opens unsaved for you to review and save; returned premium opens as a debit note.",
+   "show_description_on_click": 1
   },
   {
-   "depends_on": "eval:doc.renewal_procurement=='Purchase Order'",
-   "fieldname": "endorsements_via_po",
-   "fieldtype": "Check",
-   "label": "Raise extra endorsement premium as a Purchase Order"
+   "default": "Premium Invoice Submitted",
+   "fieldname": "renewal_complete_on",
+   "fieldtype": "Select",
+   "label": "Renewal is complete when",
+   "options": "Premium Invoice Submitted\nPremium Invoice Paid",
+   "description": "Until then the old policy shows Renewal In Progress and the new one Awaiting Premium. Choose Paid to wait until the premium invoice has no balance left.",
+   "show_description_on_click": 1
   },
   {
    "fieldname": "col_break_procurement",
    "fieldtype": "Column Break"
-  },
-  {
-   "default": "Draft",
-   "fieldname": "material_request_status",
-   "fieldtype": "Select",
-   "label": "Create Material Requests as",
-   "options": "\nDraft\nSubmitted",
-   "description": "For insurance renewal and endorsement requests. Maintenance has its own setting on the Maintenance tab.",
-   "show_description_on_click": 1
-  },
-  {
-   "default": "Draft",
-   "description": "An active approval workflow always starts the document as Draft.",
-   "fieldname": "purchase_order_status",
-   "fieldtype": "Select",
-   "label": "Create Purchase Orders as",
-   "options": "\nDraft\nSubmitted",
-   "show_description_on_click": 1
   },
   {
    "fieldname": "alerts_section",
@@ -284,7 +253,7 @@
    "label": "Also remind the policy owner"
   },
   {
-   "default": "1",
+   "default": "0",
    "description": "Uses the email on the broker's Supplier record or its primary contact.",
    "fieldname": "notify_broker",
    "fieldtype": "Check",
@@ -388,12 +357,86 @@
    "options": "Asset Company Default",
    "description": "One row per company. Click a row to see all its fields. These are defaults: a claim can still use different accounts.",
    "show_description_on_click": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "enable_why_why",
+   "fieldtype": "Check",
+   "label": "Use Why-Why analysis",
+   "description": "Shows the Why-Why Analysis tab on Check Sheets and Asset Repairs. Turn off to hide it; analyses already recorded are kept.",
+   "show_description_on_click": 1
+  },
+  {
+   "default": "14",
+   "depends_on": "auto_create_service_records",
+   "fieldname": "service_record_lead_days",
+   "fieldtype": "Int",
+   "non_negative": 1,
+   "label": "Create it this many days before the due date",
+   "description": "0 = on the due date. Overdue maintenance gets its record straight away.",
+   "show_description_on_click": 1
+  },
+  {
+   "fieldname": "service_reminders_section",
+   "fieldtype": "Section Break",
+   "label": "Service Record Reminders"
+  },
+  {
+   "default": "3,1",
+   "fieldname": "service_reminder_days",
+   "fieldtype": "Data",
+   "label": "Reminders (days before due)",
+   "description": "Comma-separated, e.g. 7,3,1. Each reminder is sent once per record. Leave empty for no reminders before the due date.",
+   "show_description_on_click": 1
+  },
+  {
+   "default": "3",
+   "fieldname": "service_overdue_reminder_days",
+   "fieldtype": "Int",
+   "non_negative": 1,
+   "label": "Remind again every (days) while overdue",
+   "description": "0 = no overdue reminders.",
+   "show_description_on_click": 1
+  },
+  {
+   "fieldname": "col_break_service_reminders",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "service_reminder_roles",
+   "fieldtype": "Table MultiSelect",
+   "options": "Asset Settings Role",
+   "label": "Send reminders to roles"
+  },
+  {
+   "default": "1",
+   "fieldname": "notify_service_assignee",
+   "fieldtype": "Check",
+   "label": "Also remind the person the record is assigned to"
+  },
+  {
+   "default": "Material Request",
+   "fieldname": "parts_purchase_document",
+   "fieldtype": "Select",
+   "label": "Purchase parts and services through",
+   "options": "Material Request\nPurchase Order\nMaterial Request and Purchase Order",
+   "description": "Which purchase option a Service Record or Asset Repair offers for items to buy. Material Request: only Request Purchase (purchasing turns it into a Purchase Order). Purchase Order: only Create Purchase Order (the workshop orders straight from the supplier). Material Request and Purchase Order: both, each shown only to users whose role may create that document.",
+   "show_description_on_click": 1
+  },
+  {
+   "default": "Email",
+   "fieldname": "parts_received_notification",
+   "fieldtype": "Select",
+   "label": "Tell people when bought parts arrive by",
+   "options": "Email\nSMS\nEmail and SMS\nIn-app only",
+   "description": "When a Purchase Receipt brings in parts bought for a Service Record or Asset Repair, the person handling the job is told so the parts can be issued. Everyone also gets the bell notification. SMS uses the organisation's SMS Settings and the mobile number on the person's User or Employee record.",
+   "show_description_on_click": 1
   }
  ],
  "index_web_pages_for_search": 0,
  "issingle": 1,
  "links": [],
- "modified": "2026-11-06 14:00:00.000000",
+ "modified": "2026-11-09 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Asset",
  "name": "Asset Settings",

@@ -107,6 +107,9 @@ def todo_on_update(doc, method=None):
 
 @frappe.whitelist()
 def show_guide():
-	"""Asset Settings → Display → Show the step guide (not sensitive; readable by any desk user)."""
-	value = frappe.db.get_single_value("Asset Settings", "show_why_why_guide")
-	return value is None or bool(value)
+	"""Asset Settings → Display → Why-Why switches (not sensitive; readable by any desk user)."""
+	def on(field):
+		value = frappe.db.get_single_value("Asset Settings", field)
+		return value is None or bool(value)
+
+	return {"enabled": on("enable_why_why"), "guide": on("enable_why_why") and on("show_why_why_guide")}

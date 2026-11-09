@@ -17,6 +17,9 @@ upande_asset.why_why = {
 		action: { action: "Add “check hose clamps” to the 250-hour service sheet", owner: "Workshop Lead", due: "Friday", status: "Open" },
 	},
 
+	FIELDS: ["why_why_tab", "why_why_section", "problem_statement", "why_why_analysis", "root_cause_section", "root_cause",
+		"root_cause_category", "corrective_actions_section", "corrective_actions"],
+
 	setup(frm) {
 		const help = frm.fields_dict.why_why_help;
 		if (!help) return;
@@ -24,7 +27,13 @@ upande_asset.why_why = {
 		if (upande_asset.why_why.__show === undefined) {
 			upande_asset.why_why.__show = frappe.xcall("upande_asset.upande_asset.rca.show_guide").catch(() => true);
 		}
-		upande_asset.why_why.__show.then((show) => frm.toggle_display("why_why_help", !!show));
+		upande_asset.why_why.__show.then((r) => {
+			// Older responses were a plain boolean (the guide switch only).
+			const opts = typeof r === "object" && r !== null ? r : { enabled: true, guide: !!r };
+			frm.toggle_display("why_why_help", !!opts.guide);
+			// Asset Settings → Display → Use Why-Why analysis: hide the whole tab.
+			frm.toggle_display(upande_asset.why_why.FIELDS, !!opts.enabled);
+		});
 		const $w = help.$wrapper;
 		$w.off(".uaww");
 		$w.on("click.uaww", ".ua-ww-step[data-target]", (e) => {

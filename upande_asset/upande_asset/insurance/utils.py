@@ -29,7 +29,8 @@ ACCOUNT_FIELDS = (
 	"claim_shortfall_account",
 )
 
-LIVE_POLICY_STATUSES = ("Active", "Expiring")
+# Submitted policies whose cover is running (renewal states included).
+LIVE_POLICY_STATUSES = ("Active", "Expiring", "Renewal In Progress", "Awaiting Premium")
 SETTINGS = "Asset Settings"
 
 
@@ -70,10 +71,13 @@ def get_premium_item():
 	return item
 
 
+def parse_days(raw):
+	""""60, 30,7" → [60, 30, 7] (positive whole days, largest first)."""
+	return sorted({cint(d.strip()) for d in (raw or "").split(",") if d.strip().isdigit() and cint(d.strip()) > 0}, reverse=True)
+
+
 def get_alert_days():
-	raw = get_settings().renewal_alert_days or "60,30,7"
-	days = sorted({cint(d.strip()) for d in raw.split(",") if d.strip().isdigit() and cint(d.strip()) > 0}, reverse=True)
-	return days or [60, 30, 7]
+	return parse_days(get_settings().renewal_alert_days or "60,30,7") or [60, 30, 7]
 
 
 def get_expiring_threshold():
@@ -111,10 +115,6 @@ def split_amount(total, weights, precision=2):
 	parts = [flt(total * flt(w) / weight_sum, precision) for w in weights[:-1]]
 	parts.append(flt(total - sum(parts), precision))
 	return parts
-
-
-def split_evenly(total, n, precision=2):
-	return split_amount(total, [1] * n, precision)
 
 
 def cost_center_weights(policy):
@@ -211,10 +211,10 @@ def users_for_setting(fieldname):
 	return users_with_role(*setting_roles(fieldname))
 
 
-def notify(users, subject, message, doctype=None, name=None, emails=None):
-	"""System notification + email. Never raises (scheduler-safe)."""
+def notify(users, subject, message, doctype=None, name=None, emails=None, send_email=True):
+	"""System notification + email (unless send_email is False). Never raises (scheduler-safe)."""
 	users = sorted({u for u in (users or []) if u and u not in ("Guest",)})
-	recipients = sorted(set(users) | set(emails or []))
+	recipients = sorted(set(users) | set(emails or [])) if send_email else []
 	try:
 		if users:
 			from frappe.desk.doctype.notification_log.notification_log import enqueue_create_notification
@@ -273,3 +273,38 @@ def next_period(end_date):
 	start = add_days(getdate(end_date), 1)
 	end = add_days(frappe.utils.add_years(start, 1), -1)
 	return start, end
+
+
+def mobile_numbers(users):
+	"""Mobile numbers of users: their User record, else their Employee record."""
+	numbers = []
+	for user in users or []:
+		number = frappe.db.get_value("User", user, "mobile_no") or frappe.db.get_value("User", user, "phone") \
+			or frappe.db.get_value("Employee", {"user_id": user, "status": "Active"}, "cell_number")
+		if number:
+			numbers.append(number)
+	return list(dict.fromkeys(numbers))
+
+
+def sms_configured():
+	return bool(frappe.get_hooks("send_sms") or frappe.db.get_single_value("SMS Settings", "sms_gateway_url"))
+
+
+def send_sms(users, text):
+	"""Text the users through the organisation's SMS Settings (or an SMS app's send_sms hook).
+	Never raises: a missing gateway or number is logged, not shown."""
+	numbers = mobile_numbers(users)
+	if not numbers:
+		frappe.log_error(f"No mobile number for {', '.join(users or [])}", "Upande Asset SMS")
+		return False
+	if not sms_configured():
+		frappe.log_error("SMS Settings has no gateway; SMS not sent.", "Upande Asset SMS")
+		return False
+	try:
+		from frappe.core.doctype.sms_settings.sms_settings import _send_sms
+
+		_send_sms(numbers, text, success_msg=False)
+		return True
+	except Exception:
+		frappe.log_error(frappe.get_traceback(), "Upande Asset SMS failed")
+		return False

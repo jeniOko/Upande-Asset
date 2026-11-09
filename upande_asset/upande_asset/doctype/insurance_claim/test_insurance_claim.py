@@ -103,6 +103,46 @@ class TestInsuranceClaim(unittest.TestCase):
 		self.assertEqual(claim.status, "Recorded")
 		self.assertTrue(claim.lodged_on)
 
+	def test_mandatory_documents_locked_once_recorded(self):
+		claim = apply_workflow(make_claim(self.asset), "Record")
+		mandatory = next(d for d in claim.documents if d.mandatory)
+
+		for change in ("clear", "untick", "rename", "remove"):
+			claim = frappe.get_doc("Insurance Claim", claim.name)
+			row = claim.getone("documents", {"name": mandatory.name})
+			if change == "clear":
+				row.attachment = None
+			elif change == "untick":
+				row.mandatory = 0
+			elif change == "rename":
+				row.document_name = "Something else"
+			else:
+				claim.remove(row)
+			with self.assertRaises(frappe.ValidationError, msg=change):
+				claim.save()
+
+		# Replacing the file is fine.
+		claim = frappe.get_doc("Insurance Claim", claim.name)
+		claim.getone("documents", {"name": mandatory.name}).attachment = "/files/replacement.pdf"
+		claim.save()
+
+		# Still locked after submit (fields are allow-on-submit).
+		claim = apply_workflow(frappe.get_doc("Insurance Claim", claim.name), "Start Assessment")
+		claim = apply_workflow(frappe.get_doc("Insurance Claim", claim.name), "Approve")
+		claim = frappe.get_doc("Insurance Claim", claim.name)
+		self.assertEqual(claim.docstatus, 1)
+		claim.getone("documents", {"name": mandatory.name}).attachment = None
+		with self.assertRaises(frappe.ValidationError):
+			claim.save()
+
+		# The File behind it cannot be deleted either.
+		f = frappe.get_doc({"doctype": "File", "file_name": "replacement.pdf", "file_url": "/files/replacement.pdf",
+			"attached_to_doctype": "Insurance Claim", "attached_to_name": claim.name})
+		f.flags.ignore_file_validate = True
+		f.db_insert()
+		with self.assertRaises(frappe.ValidationError):
+			frappe.delete_doc("File", f.name)
+
 	def test_approved_amount_cannot_exceed_claimed(self):
 		claim = make_claim(self.asset)
 		claim.amount_approved = 300_000

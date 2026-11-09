@@ -7,6 +7,7 @@
  "engine": "InnoDB",
  "field_order": [
   "company",
+  "letter_head",
   "warehouses_section",
   "parts_warehouse",
   "col_break_wh",
@@ -110,6 +111,14 @@
    "label": "Shortfall",
    "options": "Account",
    "show_description_on_click": 1
+  },
+  {
+   "fieldname": "letter_head",
+   "fieldtype": "Link",
+   "options": "Letter Head",
+   "label": "Letterhead for reminders",
+   "description": "Shown at the top of this company's asset reminder emails (insurance, maintenance, check sheets). Leave empty for none.",
+   "in_list_view": 1
   }
  ],
  "index_web_pages_for_search": 0,

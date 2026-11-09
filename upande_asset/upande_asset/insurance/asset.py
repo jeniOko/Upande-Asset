@@ -102,20 +102,29 @@ def get_asset_insurance_status(asset):
 	if not frappe.db.get_value("Asset", asset, "insurance_required"):
 		return {"required": 0}
 	rows = [r for r in get_covering_rows(asset) if r.status != "Cancelled"]
+	requests = frappe.get_all("Insurance Policy Endorsement Log", fields=["parent as policy", "endorsement_type", "effective_date"],
+		filters={"parenttype": "Insurance Policy", "asset": asset, "status": "Requested"})
 	if not rows:
+		adding = [q for q in requests if q.endorsement_type == "Add Assets"]
+		if adding:
+			return {"required": 1, "state": "Cover requested", "policies": [], "requests": adding}
 		return {"required": 1, "state": "Uninsured", "policies": []}
 	threshold = get_expiring_threshold()
 	latest_end = max(getdate(r.end_date) for r in rows)
 	days_left = date_diff(latest_end, today())
-	# A submitted renewal that starts the day after means cover is not really expiring.
-	renewed = frappe.db.exists(
-		"Insurance Policy",
-		{"renewed_from": ["in", [r.policy for r in rows]], "docstatus": 1},
-	)
-	state = "Cover expiring" if (days_left <= threshold and not renewed) else "Insured"
+	statuses = {r.status for r in rows}
+	if "Awaiting Premium" in statuses:
+		state = "Awaiting premium"  # cover runs under a renewal whose premium is not settled yet
+	elif "Renewal In Progress" in statuses:
+		state = "Renewal in progress"
+	elif days_left <= threshold and "Renewed" not in statuses:
+		state = "Cover expiring"
+	else:
+		state = "Insured"
 	return {
 		"required": 1,
 		"state": state,
+		"requests": requests,
 		"days_left": days_left,
 		"policies": [
 			{"policy": r.policy, "policy_type": r.policy_type, "end_date": r.end_date, "sum_insured": r.sum_insured}
@@ -171,67 +180,59 @@ def asset_on_update_after_submit(doc, method=None):
 
 
 def notify_disposed_asset(asset, reason):
-	"""Create one open ToDo (role: Accounts Manager) per policy that still carries
-	the disposed asset as an active row. Never modifies the policy itself."""
+	"""An insured asset was scrapped or sold: raise a "Remove Assets" endorsement request on each
+	live policy still carrying it (dated today), for the insurance role to send to the insurer.
+	The policy itself only changes when the insurer confirms. A Total Loss claim, once approved,
+	removes the asset instead and withdraws the request."""
+	from upande_asset.upande_asset.insurance.endorsement import request
 	from upande_asset.upande_asset.insurance.utils import get_settings
 
 	endorsement_role = get_settings().endorsement_todo_role or "Accounts Manager"
-	rows = [
-		r
-		for r in get_covering_rows(asset)
-		if r.status in LIVE_POLICY_STATUSES and r.row_status == "Active"
-	]
+	rows = [r for r in get_covering_rows(asset) if r.status in LIVE_POLICY_STATUSES and r.row_status == "Active"]
 	for r in rows:
-		marker = f"[{asset}]"
-		if frappe.db.exists(
-			"ToDo",
-			{
-				"reference_type": "Insurance Policy",
-				"reference_name": r.policy,
-				"status": "Open",
-				"description": ["like", f"%{marker}%"],
-			},
-		):
+		policy = frappe.get_doc("Insurance Policy", r.policy)
+		if any(e.status == "Requested" and e.asset == asset for e in policy.endorsements):
 			continue
-		todo = frappe.get_doc(
-			{
-				"doctype": "ToDo",
-				"status": "Open",
-				"priority": "High",
-				"role": endorsement_role,
-				"date": today(),
-				"reference_type": "Insurance Policy",
-				"reference_name": r.policy,
-				"description": _(
-					"Asset {0} {1} was {2}. It is still an active row on policy {3} ({4}, sum insured {5}). "
-					"Endorse the policy (Endorse → Remove Assets) to claim the return premium."
-				).format(
-					marker,
-					frappe.db.get_value("Asset", asset, "asset_name") or "",
-					reason,
-					r.policy,
-					r.policy_type,
-					fmt_money(r.sum_insured),
-				),
-			}
-		)
-		todo.flags.ignore_permissions = True
-		todo.insert()
+		try:
+			request(policy, "Remove Assets", {"assets": [{"asset": asset}], "effective_date": today(),
+				"remarks": _("Asset {0} was {1}.").format(asset, reason)})
+		except Exception:
+			frappe.log_error(frappe.get_traceback(), f"Removal request for {asset} on {r.policy}")
+			continue
 		for user in users_with_role(endorsement_role):
 			try:
 				from frappe.desk.doctype.notification_log.notification_log import enqueue_create_notification
 
-				enqueue_create_notification(
-					user,
-					{
-						"type": "Alert",
-						"subject": _("Endorse policy {0}: asset {1} {2}").format(r.policy, asset, reason),
-						"document_type": "Insurance Policy",
-						"document_name": r.policy,
-					},
-				)
+				enqueue_create_notification(user, {
+					"type": "Alert",
+					"subject": _("Asset {0} {1}: removal from policy {2} requested").format(asset, reason, r.policy),
+					"email_content": _disposal_message(asset, reason, r),
+					"document_type": "Insurance Policy",
+					"document_name": r.policy,
+				})
 			except Exception:
 				pass
+
+
+def _disposal_message(asset, reason, r):
+	from frappe.utils import escape_html, get_url_to_form
+
+	from upande_asset.upande_asset import emails as em
+
+	a = frappe.db.get_value("Asset", asset, ["asset_name", "company"], as_dict=True)
+	return em.card(
+		area=_("Asset Insurance"), tone="warning", status=_("Removal requested"),
+		title=_("{0} was {1}").format(a.asset_name or asset, reason),
+		intro=escape_html(_("It is still on the policy below. A request to remove it was raised: send it to the insurer, "
+			"then confirm it with their endorsement number to record any refund.")),
+		facts=[
+			(_("Asset"), em.form_link("Asset", asset, f"{a.asset_name or asset} ({asset})")),
+			(_("Policy"), em.form_link("Insurance Policy", r.policy, r.policy_number or r.policy)),
+			(_("Policy type"), escape_html(r.policy_type or "")),
+			(_("Sum insured"), em.money(r.sum_insured, a.company)),
+		],
+		button=(_("Open policy"), get_url_to_form("Insurance Policy", r.policy)), company=a.company,
+	)
 
 
 def journal_entry_on_submit(doc, method=None):
