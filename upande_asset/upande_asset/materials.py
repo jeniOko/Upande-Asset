@@ -191,7 +191,7 @@ def row_status(row, issued, received):
 def refresh_rows(doc):
 	"""Defaults plus live Actual Qty, Issued Qty and Status on every materials row.
 	Runs on load as well as on save, so the form always shows current stock."""
-	from erpnext.stock.get_item_details import _get_bin_details
+	from erpnext.stock.get_item_details import get_bin_details
 
 	rows = [r for r in doc.get(conf(doc.doctype)["table"]) or [] if r.item_code]
 	default_wh = default_parts_warehouse(doc.company)
@@ -202,7 +202,7 @@ def refresh_rows(doc):
 		row.uom = row.uom or frappe.get_cached_value("Item", row.item_code, "stock_uom")
 		if is_stock and not row.warehouse and default_wh:
 			row.warehouse = default_wh
-		row.actual_qty = flt((_get_bin_details(row.item_code, row.warehouse, doc.company) or {}).get("actual_qty")) \
+		row.actual_qty = flt((get_bin_details(row.item_code, row.warehouse, doc.company) or {}).get("actual_qty")) \
 			if is_stock and row.warehouse else 0
 	issued = _issued(doc, rows)
 	for row in rows:
